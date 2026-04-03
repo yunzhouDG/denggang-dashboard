@@ -28,26 +28,25 @@ def load_data():
     conn.close()
     os.unlink(tmp_path)
 
-    # 重命名列名以统一
-    # 客资明细表
-    df_main.rename(columns={
-        '获取时间': '日期',
-        '意向品牌': '品牌',       # 注意：客资表用意向品牌
-        '运营中心': '运营中心',
-        '片区': '片区',
-        '品类': '品类',
-        '外呼状态': '外呼状态',
-        '最新跟进状态': '最新跟进状态',
-    }, inplace=True, errors='ignore')
-    # 订单表
-    df_order.rename(columns={
-        '日期': '日期',
-        '订单金额': '订单金额',
-        '品牌': '品牌',
-        '品类': '品类',
-        '运中': '运营中心',
-        '片区': '片区',
-    }, inplace=True, errors='ignore')
+    # 调试：显示原始列名（部署后可见，可注释掉）
+    st.write("客资明细表原始列名:", list(df_main.columns))
+    st.write("订单表原始列名:", list(df_order.columns))
+
+    # 统一列名（客资表）
+    # 意向品牌 -> 品牌
+    if '意向品牌' in df_main.columns:
+        df_main.rename(columns={'意向品牌': '品牌'}, inplace=True)
+    # 获取时间 -> 日期
+    if '获取时间' in df_main.columns:
+        df_main.rename(columns={'获取时间': '日期'}, inplace=True)
+    # 运营中心保持不变（已有）
+    # 片区、品类、外呼状态、最新跟进状态保持不变
+
+    # 订单表列名统一
+    # 运中 -> 运营中心
+    if '运中' in df_order.columns:
+        df_order.rename(columns={'运中': '运营中心'}, inplace=True)
+    # 日期、订单金额、品牌、品类、片区保持不变
 
     # 日期转换
     if '日期' in df_main.columns:
@@ -70,15 +69,24 @@ def load_data():
 
 df_main, df_order = load_data()
 
-# ----------------------------- 品牌筛选（纯Python循环） -----------------------------
+# ----------------------------- 品牌筛选（纯Python循环，兼容列名） -----------------------------
 def filter_by_brand(df, selected_brands):
     """根据选中的品牌组合过滤DataFrame（支持组合逻辑）"""
     if not selected_brands:
         return df
-    if '品牌' not in df.columns:
+    # 确定品牌列名（客资表是'品牌'，订单表也是'品牌'，但客资表可能没有？我们已重命名）
+    brand_col = None
+    if '品牌' in df.columns:
+        brand_col = '品牌'
+    elif '意向品牌' in df.columns:
+        brand_col = '意向品牌'
+    else:
+        st.warning("DataFrame中没有品牌列，跳过品牌筛选")
         return df
-    brands = df['品牌'].tolist()
-    categories = df['品类'].tolist() if '品类' in df.columns else [''] * len(df)
+    category_col = '品类' if '品类' in df.columns else None
+
+    brands = df[brand_col].tolist()
+    categories = df[category_col].tolist() if category_col else [''] * len(df)
     keep_flags = []
     for brand, cat in zip(brands, categories):
         keep = False
@@ -131,16 +139,25 @@ date_range = st.sidebar.date_input("日期范围", [min_date, max_date], min_val
 custom_brands = ['美的', '东芝', '小天鹅', 'COLMO', '美的厨热', '美的冰箱', '美的空调', '洗衣机汇总']
 selected_brands = st.sidebar.multiselect("品牌", custom_brands, default=custom_brands)
 
-# 品类
-category_options = get_unique_sorted(df_main['品类']) if '品类' in df_main.columns else []
+# 品类（从客资表获取）
+if '品类' in df_main.columns:
+    category_options = get_unique_sorted(df_main['品类'])
+else:
+    category_options = []
 selected_categories = st.sidebar.multiselect("品类", category_options, default=category_options)
 
-# 片区
-region_options = get_unique_sorted(df_main['片区']) if '片区' in df_main.columns else []
+# 片区（从客资表获取，因为客资表也有片区列）
+if '片区' in df_main.columns:
+    region_options = get_unique_sorted(df_main['片区'])
+else:
+    region_options = []
 selected_regions = st.sidebar.multiselect("片区", region_options, default=region_options)
 
-# 运营中心
-center_options = get_unique_sorted(df_main['运营中心']) if '运营中心' in df_main.columns else []
+# 运营中心（从客资表获取）
+if '运营中心' in df_main.columns:
+    center_options = get_unique_sorted(df_main['运营中心'])
+else:
+    center_options = []
 selected_centers = st.sidebar.multiselect("运营中心", center_options, default=center_options)
 
 # ----------------------------- 数据筛选函数 -----------------------------
