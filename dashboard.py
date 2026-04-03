@@ -70,9 +70,11 @@ def get_unique_sorted(series):
     return sorted(series.dropna().unique())
 
 def filter_by_brand(df, brand_selections):
-    """根据品牌筛选器（含组合逻辑）过滤DataFrame（用于客资表或订单表）"""
+    """根据品牌筛选器（含组合逻辑）过滤DataFrame"""
     if not brand_selections:
         return df
+    df = df.reset_index(drop=True)
+    has_category = '品类' in df.columns
     conditions = []
     for item in brand_selections:
         if item == '美的':
@@ -84,13 +86,25 @@ def filter_by_brand(df, brand_selections):
         elif item == 'COLMO':
             conditions.append(df['品牌'] == 'COLMO')
         elif item == '美的厨热':
-            conditions.append((df['品牌'] == '美的') & (df['品类'] == '厨热'))
+            if has_category:
+                conditions.append((df['品牌'] == '美的') & (df['品类'] == '厨热'))
+            else:
+                conditions.append(df['品牌'] == '美的')
         elif item == '美的冰箱':
-            conditions.append((df['品牌'] == '美的') & (df['品类'] == '冰箱'))
+            if has_category:
+                conditions.append((df['品牌'] == '美的') & (df['品类'] == '冰箱'))
+            else:
+                conditions.append(df['品牌'] == '美的')
         elif item == '美的空调':
-            conditions.append((df['品牌'] == '美的') & (df['品类'] == '空调'))
+            if has_category:
+                conditions.append((df['品牌'] == '美的') & (df['品类'] == '空调'))
+            else:
+                conditions.append(df['品牌'] == '美的')
         elif item == '洗衣机汇总':
-            conditions.append((df['品牌'] == '小天鹅') | ((df['品牌'] == '美的') & (df['品类'] == '洗衣机')))
+            if has_category:
+                conditions.append((df['品牌'] == '小天鹅') | ((df['品牌'] == '美的') & (df['品类'] == '洗衣机')))
+            else:
+                conditions.append(df['品牌'] == '小天鹅')
     if conditions:
         combined = conditions[0]
         for cond in conditions[1:]:
@@ -118,7 +132,7 @@ selected_categories = st.sidebar.multiselect("品类", category_options, default
 region_options = get_unique_sorted(df_main['片区'])
 selected_regions = st.sidebar.multiselect("片区", region_options, default=region_options)
 
-# 运营中心（运中）
+# 运营中心
 center_options = get_unique_sorted(df_main['运营中心'])
 selected_centers = st.sidebar.multiselect("运营中心", center_options, default=center_options)
 
@@ -169,24 +183,22 @@ with col3:
 with col4:
     st.metric("总金额", f"{total_amount:,.0f} 元")
 
-# 环比计算
+# 环比（显示在侧边栏）
 def calc_change(current, previous):
     if previous == 0:
         return None
     return (current - previous) / previous
 
-# 日环比（总金额）
 today = datetime.today().date()
 yesterday = today - timedelta(days=1)
 amount_today = df_order_filtered[df_order_filtered['日期'].dt.date == today]['订单金额'].sum()
 amount_yesterday = df_order_filtered[df_order_filtered['日期'].dt.date == yesterday]['订单金额'].sum()
 day_change = calc_change(amount_today, amount_yesterday)
 if day_change is not None:
-    st.sidebar.metric("日环比 (总金额)", f"{day_change:.1%}", delta_color="normal")
+    st.sidebar.metric("日环比 (总金额)", f"{day_change:.1%}")
 else:
     st.sidebar.info("无昨日数据")
 
-# 月环比（总金额）
 first_day_current = datetime(today.year, today.month, 1).date()
 first_day_prev = datetime(today.year - (1 if today.month == 1 else today.year), 
                           (today.month - 1) if today.month > 1 else 12, 1).date()
@@ -195,7 +207,7 @@ amount_prev_month = df_order_filtered[(df_order_filtered['日期'].dt.date >= fi
                                       (df_order_filtered['日期'].dt.date < first_day_current)]['订单金额'].sum()
 month_change = calc_change(amount_current_month, amount_prev_month)
 if month_change is not None:
-    st.sidebar.metric("月环比 (总金额)", f"{month_change:.1%}", delta_color="normal")
+    st.sidebar.metric("月环比 (总金额)", f"{month_change:.1%}")
 else:
     st.sidebar.info("无上月数据")
 
@@ -222,10 +234,9 @@ fig_funnel = go.Figure(go.Funnel(
 fig_funnel.update_layout(title="转化漏斗")
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# ----------------------------- 折线图（比率趋势） -----------------------------
+# ----------------------------- 折线图（转化率趋势） -----------------------------
 st.header("📈 转化率趋势")
 if not df_main_filtered.empty and not df_main_filtered['日期'].isna().all():
-    # 按日期聚合
     daily = df_main_filtered.groupby(df_main_filtered['日期'].dt.date).apply(
         lambda x: pd.Series({
             '总客资': len(x),
@@ -234,7 +245,6 @@ if not df_main_filtered.empty and not df_main_filtered['日期'].isna().all():
             '跟进数': len(x[(x['外呼状态'].isin(['高意向', '低意向', '无需外呼'])) & (~x['最新跟进状态'].isin(['未分配', '待查看', '待联系']))])
         })
     ).reset_index()
-    # 订单按日期
     daily_orders = df_order_filtered.groupby(df_order_filtered['日期'].dt.date).size().reset_index(name='成交数')
     daily = daily.merge(daily_orders, on='日期', how='left').fillna(0)
     daily['有效率'] = daily['有效客资'] / daily['总客资'].replace(0, pd.NA)
@@ -262,7 +272,7 @@ if not df_order_filtered.empty and '品牌' in df_order_filtered.columns:
 else:
     st.info("订单表中无品牌数据或数据为空")
 
-# ----------------------------- 可选：销售额分布柱状图（按品类/片区/运中） -----------------------------
+# ----------------------------- 销售额分布（按品类/片区/运营中心） -----------------------------
 st.subheader("销售额分布")
 tab1, tab2, tab3 = st.tabs(["按品类", "按片区", "按运营中心"])
 with tab1:
@@ -287,4 +297,4 @@ with tab3:
     else:
         st.info("无运营中心数据")
 
-st.caption("数据根据左侧筛选器动态更新 | 漏斗图各阶段定义：有效=高意向/低意向/无需外呼；分配=有效且最新跟进状态≠未分配；跟进=有效且最新跟进状态∉{未分配,待查看,待联系}")
+st.caption("数据根据左侧筛选器动态更新 | 有效客资定义：外呼状态为高意向/低意向/无需外呼；分配：有效且最新跟进状态≠未分配；跟进：有效且最新跟进状态∉{未分配,待查看,待联系}")
