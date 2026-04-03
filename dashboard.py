@@ -10,7 +10,7 @@ st.title("📊 每日订单金额趋势")
 @st.cache_data(ttl=86400)
 def load_data():
     # 从 zip 文件中读取 SQLite 数据库
-    with zipfile.ZipFile('data.db.zip', 'r') as z:
+    with zipfile.ZipFile('data.zip', 'r') as z:
         with z.open('data.db') as f:
             data = f.read()
     # 创建内存中的数据库连接
