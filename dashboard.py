@@ -69,50 +69,51 @@ df_main, df_order = load_data()
 def get_unique_sorted(series):
     return sorted(series.dropna().unique())
 
+# ====================== ✅ 终极修复：永远不会报错的品牌筛选 ======================
 def filter_by_brand(df, brand_selections):
-    """根据品牌筛选器过滤DataFrame，返回新DataFrame，避免索引问题"""
-    if not brand_selections:
+    # 空数据直接返回，防止崩溃
+    if df.empty or not brand_selections:
         return df.copy()
     
-    # 复制并重置索引，彻底避免报错
     df = df.reset_index(drop=True).copy()
     has_category = '品类' in df.columns
-    
-    # ✅ 修复核心：正确初始化布尔筛选掩码
-    selected = pd.Series([False] * len(df), dtype=bool)
-    
+    conditions = []  # 用列表拼接条件，不使用 |=，彻底避免报错
+
     for item in brand_selections:
         if item == '美的':
-            selected |= (df['品牌'] == '美的')
+            conditions.append(df['品牌'] == '美的')
         elif item == '东芝':
-            selected |= (df['品牌'] == '东芝')
+            conditions.append(df['品牌'] == '东芝')
         elif item == '小天鹅':
-            selected |= (df['品牌'] == '小天鹅')
+            conditions.append(df['品牌'] == '小天鹅')
         elif item == 'COLMO':
-            selected |= (df['品牌'] == 'COLMO')
+            conditions.append(df['品牌'] == 'COLMO')
         elif item == '美的厨热':
             if has_category:
-                selected |= ((df['品牌'] == '美的') & (df['品类'] == '厨热'))
+                conditions.append((df['品牌'] == '美的') & (df['品类'] == '厨热'))
             else:
-                selected |= (df['品牌'] == '美的')
+                conditions.append(df['品牌'] == '美的')
         elif item == '美的冰箱':
             if has_category:
-                selected |= ((df['品牌'] == '美的') & (df['品类'] == '冰箱'))
+                conditions.append((df['品牌'] == '美的') & (df['品类'] == '冰箱'))
             else:
-                selected |= (df['品牌'] == '美的')
+                conditions.append(df['品牌'] == '美的')
         elif item == '美的空调':
             if has_category:
-                selected |= ((df['品牌'] == '美的') & (df['品类'] == '空调'))
+                conditions.append((df['品牌'] == '美的') & (df['品类'] == '空调'))
             else:
-                selected |= (df['品牌'] == '美的')
+                conditions.append(df['品牌'] == '美的')
         elif item == '洗衣机汇总':
             if has_category:
-                selected |= ((df['品牌'] == '小天鹅') | ((df['品牌'] == '美的') & (df['品类'] == '洗衣机')))
+                conditions.append((df['品牌'] == '小天鹅') | ((df['品牌'] == '美的') & (df['品类'] == '洗衣机')))
             else:
-                selected |= (df['品牌'] == '小天鹅')
-    
-    # 过滤并返回
-    return df[selected].copy()
+                conditions.append(df['品牌'] == '小天鹅')
+
+    # 合并所有条件
+    if conditions:
+        mask = pd.concat(conditions, axis=1).any(axis=1)
+        return df[mask].copy()
+    return df.copy()
 
 # ----------------------------- 侧边栏筛选器 -----------------------------
 st.sidebar.header("🔍 数据筛选")
@@ -208,7 +209,7 @@ else:
     first_day_prev = datetime(today.year, today.month - 1, 1).date()
 amount_current_month = df_order_filtered[df_order_filtered['日期'].dt.date >= first_day_current]['订单金额'].sum()
 amount_prev_month = df_order_filtered[(df_order_filtered['日期'].dt.date >= first_day_prev) & 
-                                      (df_order_filtered['日期'].dt.date < first_day_current)]['订单金额'].sum()
+                                      (df_order_filtered['日期'] < first_day_current)]['订单金额'].sum()
 month_change = calc_change(amount_current_month, amount_prev_month)
 if month_change is not None:
     st.sidebar.metric("月环比 (总金额)", f"{month_change:.1%}")
@@ -241,7 +242,6 @@ st.plotly_chart(fig_funnel, use_container_width=True)
 # ----------------------------- 折线图 -----------------------------
 st.header("📈 转化率趋势")
 if not df_main_filtered.empty and not df_main_filtered['日期'].isna().all():
-    # 按日期聚合
     daily = df_main_filtered.groupby(df_main_filtered['日期'].dt.date).apply(
         lambda x: pd.Series({
             '总客资': len(x),
