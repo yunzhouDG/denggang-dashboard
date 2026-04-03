@@ -26,22 +26,22 @@ def load_data():
     
     # 3. 连接临时数据库并查询
     conn = sqlite3.connect(tmp_path)
-    query = """
+        query = """
         SELECT 
-            o.`日期`,
-            o.`订单金额`,
-            k.`意向品牌` AS `品牌`,
-            k.`品类`,
-            k.`运营中心`,
-            k.`获取时间`
-        FROM `订单表` o
-        INNER JOIN `客资明细表` k 
-            ON o.`日期` = k.`获取时间`
-            AND o.`品牌` = k.`意向品牌`
-            AND o.`品类` = k.`品类`
-            AND o.`运中` = k.`运营中心`
-        WHERE o.`日期` IS NOT NULL
-        ORDER BY o.`日期` DESC
+            o."日期",
+            o."订单金额",
+            k."意向品牌" AS "品牌",
+            k."品类",
+            k."运营中心",
+            k."获取时间"
+        FROM "订单表" o
+        INNER JOIN "客资明细表" k 
+            ON o."日期" = k."获取时间"
+            AND o."品牌" = k."意向品牌"
+            AND o."品类" = k."品类"
+            AND o."运中" = k."运营中心"
+        WHERE o."日期" IS NOT NULL
+        ORDER BY o."日期" DESC
         LIMIT 5000
     """
     df = pd.read_sql(query, conn)
