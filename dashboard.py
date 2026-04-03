@@ -19,15 +19,20 @@ st.set_page_config(
 st.markdown("""
 <style>
 [data-testid="stMetricValue"] {
-    font-size: 24px !important;
+    font-size: 26px !important;
     font-weight: bold !important;
+    color: #2F4F4F;
 }
 [data-testid="stMetricLabel"] {
-    font-size: 15px !important;
+    font-size: 16px !important;
+    color: #696969;
 }
 .block-container {
-    padding-top: 2rem;
-    padding-bottom: 2rem;
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+}
+.css-1vq4p4l {
+    padding-top: 1rem !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -145,11 +150,14 @@ def get_unique_sorted(series):
     return sorted(series.dropna().unique())
 
 def fmt_wan(x):
+    """金额转为万元"""
     return f"{x/10000:.1f} 万"
 
-# ----------------------------- 侧边栏 -----------------------------
-st.sidebar.header("🔍 筛选条件")
+# ----------------------------- 侧边栏筛选 -----------------------------
+st.sidebar.header("🔍 数据筛选")
 
+# ========== 关键：中文日期范围 ==========
+st.sidebar.subheader("📅 日期范围")
 if '日期' in df_main.columns and not df_main['日期'].isna().all():
     min_date = df_main['日期'].min().date()
     max_date = df_main['日期'].max().date()
@@ -157,21 +165,31 @@ else:
     min_date = datetime.today().date()
     max_date = datetime.today().date()
 
-date_range = st.sidebar.date_input("日期范围", [min_date, max_date], min_value=min_date, max_value=max_date)
+date_range = st.sidebar.date_input(
+    "选择起止日期",
+    [min_date, max_date],
+    min_value=min_date,
+    max_value=max_date,
+    format="YYYY年MM月DD日"  # 👈 中文日期显示
+)
 
+# 品牌
 custom_brands = ['美的', '东芝', '小天鹅', 'COLMO', '美的厨热', '美的冰箱', '美的空调', '洗衣机汇总']
 selected_brands = st.sidebar.multiselect("品牌", custom_brands, default=custom_brands)
 
+# 品类
 category_options = get_unique_sorted(df_main['品类']) if '品类' in df_main.columns else []
 selected_categories = st.sidebar.multiselect("品类", category_options, default=category_options)
 
+# 片区
 region_options = get_unique_sorted(df_main['片区']) if '片区' in df_main.columns else []
 selected_regions = st.sidebar.multiselect("片区", region_options, default=region_options)
 
+# 运营中心
 center_options = get_unique_sorted(df_main['运营中心']) if '运营中心' in df_main.columns else []
 selected_centers = st.sidebar.multiselect("运营中心", center_options, default=center_options)
 
-# ----------------------------- 筛选 -----------------------------
+# ----------------------------- 数据筛选 -----------------------------
 def filter_main(df, date_range, categories, regions, centers):
     if '日期' in df.columns and len(date_range) == 2:
         start, end = date_range
@@ -204,6 +222,7 @@ df_order_filtered = filter_by_brand(df_order_filtered, selected_brands)
 
 # ----------------------------- 核心指标 -----------------------------
 st.title("🏬 天猫新零售数据看板")
+st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
 
 total_leads = len(df_main_filtered)
 valid_leads = len(df_main_filtered[df_main_filtered['外呼状态'].isin(['高意向', '低意向', '无需外呼'])]) if '外呼状态' in df_main_filtered.columns else 0
@@ -360,4 +379,4 @@ with tab2:
         fig = px.bar(cen, x='运营中心', y='万', color='万', color_continuous_scale='purples')
         st.plotly_chart(fig, use_container_width=True)
 
-st.caption("✅ 数据实时刷新 | 金额单位：万元")
+st.caption("✅ 数据实时刷新 | 金额单位：万元 | 日期格式：YYYY年MM月DD日")
