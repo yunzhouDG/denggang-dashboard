@@ -37,6 +37,7 @@ def load_data():
         '外呼状态': '外呼状态',
         '最新跟进状态': '最新跟进状态',
     }, inplace=True, errors='ignore')
+    
     df_order.rename(columns={
         '日期': '日期',
         '订单金额': '订单金额',
@@ -54,9 +55,11 @@ def load_data():
             df_main[col] = df_main[col].fillna('未知')
         if col in df_order.columns:
             df_order[col] = df_order[col].fillna('未知')
+            
     for col in ['外呼状态', '最新跟进状态']:
         if col not in df_main.columns:
             df_main[col] = ''
+            
     return df_main, df_order
 
 df_main, df_order = load_data()
@@ -65,40 +68,51 @@ df_main, df_order = load_data()
 def get_unique_sorted(series):
     return sorted(series.dropna().unique())
 
-# ====================== ✅ 完全重写：无 |=，无任何报错风险 ======================
+# ====================== ✅ 终极无报错品牌筛选（无 |=） ======================
 def filter_by_brand(df, brand_selections):
     if df.empty or not brand_selections:
         return df.copy()
-    
+
     df = df.reset_index(drop=True).copy()
-    has_cat = '品类' in df.columns
-    mask = pd.Series([False] * len(df), dtype='bool')
+    has_category = '品类' in df.columns
+    conditions = []
 
-    for b in brand_selections:
-        if b == '美的':
-            cond = df['品牌'] == '美的'
-        elif b == '东芝':
-            cond = df['品牌'] == '东芝'
-        elif b == '小天鹅':
-            cond = df['品牌'] == '小天鹅'
-        elif b == 'COLMO':
-            cond = df['品牌'] == 'COLMO'
-        elif b == '美的厨热':
-            cond = (df['品牌'] == '美的') & (df['品类'] == '厨热') if has_cat else (df['品牌'] == '美的')
-        elif b == '美的冰箱':
-            cond = (df['品牌'] == '美的') & (df['品类'] == '冰箱') if has_cat else (df['品牌'] == '美的')
-        elif b == '美的空调':
-            cond = (df['品牌'] == '美的') & (df['品类'] == '空调') if has_cat else (df['品牌'] == '美的')
-        elif b == '洗衣机汇总':
-            cond = (df['品牌'] == '小天鹅') | ((df['品牌'] == '美的') & (df['品类'] == '洗衣机')) if has_cat else (df['品牌'] == '小天鹅')
-        else:
-            cond = pd.Series([False]*len(df))
-        
-        mask = mask | cond  # 非原地操作，绝对安全
+    for item in brand_selections:
+        if item == '美的':
+            conditions.append("品牌 == '美的'")
+        elif item == '东芝':
+            conditions.append("品牌 == '东芝'")
+        elif item == '小天鹅':
+            conditions.append("品牌 == '小天鹅'")
+        elif item == 'COLMO':
+            conditions.append("品牌 == 'COLMO'")
+        elif item == '美的厨热':
+            if has_category:
+                conditions.append("品牌 == '美的' and 品类 == '厨热'")
+            else:
+                conditions.append("品牌 == '美的'")
+        elif item == '美的冰箱':
+            if has_category:
+                conditions.append("品牌 == '美的' and 品类 == '冰箱'")
+            else:
+                conditions.append("品牌 == '美的'")
+        elif item == '美的空调':
+            if has_category:
+                conditions.append("品牌 == '美的' and 品类 == '空调'")
+            else:
+                conditions.append("品牌 == '美的'")
+        elif item == '洗衣机汇总':
+            if has_category:
+                conditions.append("(品牌 == '小天鹅') or (品牌 == '美的' and 品类 == '洗衣机')")
+            else:
+                conditions.append("品牌 == '小天鹅'")
 
-    return df[mask].copy()
+    if conditions:
+        query_str = " or ".join(conditions)
+        return df.query(query_str).copy()
+    return df.copy()
 
-# ----------------------------- 侧边栏 -----------------------------
+# ----------------------------- 侧边栏筛选 -----------------------------
 st.sidebar.header("🔍 数据筛选")
 
 min_date = df_main['日期'].min().date() if not df_main['日期'].isna().all() else datetime.today().date()
@@ -117,7 +131,7 @@ selected_regions = st.sidebar.multiselect("片区", region_options, default=regi
 center_options = get_unique_sorted(df_main['运营中心'])
 selected_centers = st.sidebar.multiselect("运营中心", center_options, default=center_options)
 
-# ----------------------------- 筛选 -----------------------------
+# ----------------------------- 数据过滤 -----------------------------
 def filter_main(df, date_range, categories, regions, centers):
     if len(date_range) == 2:
         s, e = date_range
@@ -146,7 +160,7 @@ df_main_filtered = filter_by_brand(df_main_filtered, selected_brands)
 df_order_filtered = filter_order(df_order, date_range, selected_categories, selected_centers)
 df_order_filtered = filter_by_brand(df_order_filtered, selected_brands)
 
-# ----------------------------- 指标 -----------------------------
+# ----------------------------- 指标卡片 -----------------------------
 st.title("🏬 天猫新零售数据看板")
 col1, col2, col3, col4 = st.columns(4)
 
@@ -162,7 +176,7 @@ col4.metric("总金额", f"{total_amount:,.0f} 元")
 
 # ----------------------------- 环比 -----------------------------
 def calc_change(c, p):
-    return (c-p)/p if p !=0 else None
+    return (c - p) / p if p != 0 else None
 
 today = datetime.today().date()
 yesterday = today - timedelta(days=1)
@@ -173,14 +187,14 @@ if dc is not None:
     st.sidebar.metric("日环比", f"{dc:.1%}")
 
 first_cur = datetime(today.year, today.month, 1).date()
-first_prev = datetime(today.year-1,12,1).date() if today.month==1 else datetime(today.year, today.month-1,1).date()
+first_prev = datetime(today.year-1, 12, 1).date() if today.month == 1 else datetime(today.year, today.month-1, 1).date()
 amt_cur_m = df_order_filtered[df_order_filtered['日期'].dt.date >= first_cur]['订单金额'].sum()
 amt_pre_m = df_order_filtered[(df_order_filtered['日期'].dt.date >= first_prev) & (df_order_filtered['日期'].dt.date < first_cur)]['订单金额'].sum()
 mc = calc_change(amt_cur_m, amt_pre_m)
 if mc is not None:
     st.sidebar.metric("月环比", f"{mc:.1%}")
 
-# ----------------------------- 漏斗 -----------------------------
+# ----------------------------- 转化漏斗 -----------------------------
 st.header("📉 转化漏斗")
 def funnel(main, order):
     t = len(main)
@@ -188,47 +202,48 @@ def funnel(main, order):
     a = len(main[(main['外呼状态'].isin(['高意向','低意向','无需外呼'])) & (~main['最新跟进状态'].isin(['未分配']))])
     f = len(main[(main['外呼状态'].isin(['高意向','低意向','无需外呼'])) & (~main['最新跟进状态'].isin(['未分配','待查看','待联系']))])
     o = len(order)
-    return [t,v,a,f,o]
+    return [t, v, a, f, o]
 
-stages = ["总客资","有效客资","分配数","跟进数","成交数"]
+stages = ["总客资", "有效客资", "分配数", "跟进数", "成交数"]
 vals = funnel(df_main_filtered, df_order_filtered)
 fig = go.Figure(go.Funnel(y=stages, x=vals, textinfo="value+percent initial"))
 st.plotly_chart(fig, use_container_width=True)
 
-# ----------------------------- 趋势 -----------------------------
+# ----------------------------- 趋势图 -----------------------------
 st.header("📈 转化率趋势")
 if not df_main_filtered.empty:
     daily = df_main_filtered.groupby(df_main_filtered['日期'].dt.date).apply(
         lambda x: pd.Series({
-            '总客资':len(x),
-            '有效客资':len(x[x['外呼状态'].isin(['高意向','低意向','无需外呼'])]),
-            '分配数':len(x[(x['外呼状态'].isin(['高意向','低意向','无需外呼'])) & (~x['最新跟进状态'].isin(['未分配']))]),
-            '跟进数':len(x[(x['外呼状态'].isin(['高意向','低意向','无需外呼'])) & (~x['最新跟进状态'].isin(['未分配','待查看','待联系']))])
+            '总客资': len(x),
+            '有效客资': len(x[x['外呼状态'].isin(['高意向','低意向','无需外呼'])]),
+            '分配数': len(x[(x['外呼状态'].isin(['高意向','低意向','无需外呼'])) & (~x['最新跟进状态'].isin(['未分配']))]),
+            '跟进数': len(x[(x['外呼状态'].isin(['高意向','低意向','无需外呼'])) & (~x['最新跟进状态'].isin(['未分配','待查看','待联系']))])
         })
     ).reset_index()
+    
     d_ord = df_order_filtered.groupby(df_order_filtered['日期'].dt.date).size().reset_index(name='成交数')
     daily = daily.merge(d_ord, on='日期', how='left').fillna(0)
-    daily['有效率'] = daily['有效客资'] / daily['总客资'].replace(0,pd.NA)
-    daily['分配率'] = daily['分配数'] / daily['有效客资'].replace(0,pd.NA)
-    daily['跟进率'] = daily['跟进数'] / daily['分配数'].replace(0,pd.NA)
-    daily['成交率'] = daily['成交数'] / daily['跟进数'].replace(0,pd.NA)
+    daily['有效率'] = daily['有效客资'] / daily['总客资'].replace(0, pd.NA)
+    daily['分配率'] = daily['分配数'] / daily['有效客资'].replace(0, pd.NA)
+    daily['跟进率'] = daily['跟进数'] / daily['分配数'].replace(0, pd.NA)
+    daily['成交率'] = daily['成交数'] / daily['跟进数'].replace(0, pd.NA)
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=daily['日期'], y=daily['有效率'], name='有效率'))
-    fig.add_trace(go.Scatter(x=daily['日期'], y=daily['分配率'], name='分配率'))
-    fig.add_trace(go.Scatter(x=daily['日期'], y=daily['跟进率'], name='跟进率'))
-    fig.add_trace(go.Scatter(x=daily['日期'], y=daily['成交率'], name='成交率'))
+    fig.add_trace(go.Scatter(x=daily['日期'], y=daily['有效率'], name='有效率', mode='lines+markers'))
+    fig.add_trace(go.Scatter(x=daily['日期'], y=daily['分配率'], name='分配率', mode='lines+markers'))
+    fig.add_trace(go.Scatter(x=daily['日期'], y=daily['跟进率'], name='跟进率', mode='lines+markers'))
+    fig.add_trace(go.Scatter(x=daily['日期'], y=daily['成交率'], name='成交率', mode='lines+markers'))
     fig.update_layout(yaxis_tickformat=".0%")
     st.plotly_chart(fig, use_container_width=True)
 
-# ----------------------------- 销售 -----------------------------
+# ----------------------------- 销售额图表 -----------------------------
 st.header("📊 各品牌销售额")
 if not df_order_filtered.empty:
     bs = df_order_filtered.groupby('品牌')['订单金额'].sum().sort_values(ascending=False).head(10).reset_index()
     st.plotly_chart(px.bar(bs, x='品牌', y='订单金额', color='订单金额'), use_container_width=True)
 
 st.subheader("销售额分布")
-t1,t2,t3 = st.tabs(["品类","片区","运营中心"])
+t1, t2, t3 = st.tabs(["品类", "片区", "运营中心"])
 with t1:
     if '品类' in df_order_filtered.columns:
         c = df_order_filtered.groupby('品类')['订单金额'].sum().reset_index()
@@ -242,4 +257,4 @@ with t3:
         ce = df_order_filtered.groupby('运营中心')['订单金额'].sum().sort_values(ascending=False).head(15).reset_index()
         st.plotly_chart(px.bar(ce, x='运营中心', y='订单金额'), use_container_width=True)
 
-st.caption("数据实时更新 | 有效客资：高/低意向/无需外呼")
+st.caption("数据实时更新 | 有效客资：高意向/低意向/无需外呼")
