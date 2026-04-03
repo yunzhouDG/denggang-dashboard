@@ -60,18 +60,22 @@ def load_data():
 
 df_main, df_order = load_data()
 
-# ----------------------------- 品牌筛选函数（兼容两种列名） -----------------------------
+# ----------------------------- 品牌筛选函数（修复版） -----------------------------
 def filter_by_brand(df, selected_brands):
     if not selected_brands:
         return df
+    
     # 确定品牌列：优先 '品牌'，否则 '意向品牌'
+    brand_col = None
     if '品牌' in df.columns:
         brand_col = '品牌'
     elif '意向品牌' in df.columns:
         brand_col = '意向品牌'
-    else:
-        # 没有品牌列，无法筛选
+    
+    # 关键修复：没有品牌列直接返回原数据
+    if brand_col is None:
         return df
+    
     # 品类列
     cat_col = '品类' if '品类' in df.columns else None
     brands = df[brand_col].tolist()
@@ -217,7 +221,7 @@ else:
 
 # 月环比
 first_day_current = datetime(today.year, today.month, 1).date()
-first_day_prev = datetime(today.year - (1 if today.month == 1 else today.year), 
+first_day_prev = datetime(today.year - (1 if today.month == 1 else 0), 
                           (today.month - 1) if today.month > 1 else 12, 1).date()
 if '日期' in df_order_filtered.columns and '订单金额' in df_order_filtered.columns:
     amount_current_month = df_order_filtered[df_order_filtered['日期'].dt.date >= first_day_current]['订单金额'].sum()
