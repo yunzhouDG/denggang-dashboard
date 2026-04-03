@@ -28,31 +28,22 @@ def load_data():
     conn.close()
     os.unlink(tmp_path)
 
-    # 调试：显示原始列名（部署后可见，可注释掉）
-    st.write("客资明细表原始列名:", list(df_main.columns))
-    st.write("订单表原始列名:", list(df_order.columns))
-
-    # 统一列名（客资表）
-    # 意向品牌 -> 品牌
+    # 客资表：意向品牌 -> 品牌，获取时间 -> 日期
     if '意向品牌' in df_main.columns:
         df_main.rename(columns={'意向品牌': '品牌'}, inplace=True)
-    # 获取时间 -> 日期
     if '获取时间' in df_main.columns:
         df_main.rename(columns={'获取时间': '日期'}, inplace=True)
-    # 运营中心保持不变（已有）
-    # 片区、品类、外呼状态、最新跟进状态保持不变
 
-    # 订单表列名统一
-    # 运中 -> 运营中心
+    # 订单表：运中 -> 运营中心
     if '运中' in df_order.columns:
         df_order.rename(columns={'运中': '运营中心'}, inplace=True)
-    # 日期、订单金额、品牌、品类、片区保持不变
 
     # 日期转换
-    if '日期' in df_main.columns:
-        df_main['日期'] = pd.to_datetime(df_main['日期'], errors='coerce')
-    if '日期' in df_order.columns:
-        df_order['日期'] = pd.to_datetime(df_order['日期'], errors='coerce')
+    for col in ['日期']:
+        if col in df_main.columns:
+            df_main[col] = pd.to_datetime(df_main[col], errors='coerce')
+        if col in df_order.columns:
+            df_order[col] = pd.to_datetime(df_order[col], errors='coerce')
     if '订单金额' in df_order.columns:
         df_order['订单金额'] = pd.to_numeric(df_order['订单金额'], errors='coerce').fillna(0)
 
@@ -69,55 +60,53 @@ def load_data():
 
 df_main, df_order = load_data()
 
-# ----------------------------- 品牌筛选（纯Python循环，兼容列名） -----------------------------
+# ----------------------------- 品牌筛选函数（兼容两种列名） -----------------------------
 def filter_by_brand(df, selected_brands):
-    """根据选中的品牌组合过滤DataFrame（支持组合逻辑）"""
     if not selected_brands:
         return df
-    # 确定品牌列名（客资表是'品牌'，订单表也是'品牌'，但客资表可能没有？我们已重命名）
-    brand_col = None
+    # 确定品牌列：优先 '品牌'，否则 '意向品牌'
     if '品牌' in df.columns:
         brand_col = '品牌'
     elif '意向品牌' in df.columns:
         brand_col = '意向品牌'
     else:
-        st.warning("DataFrame中没有品牌列，跳过品牌筛选")
+        # 没有品牌列，无法筛选
         return df
-    category_col = '品类' if '品类' in df.columns else None
-
+    # 品类列
+    cat_col = '品类' if '品类' in df.columns else None
     brands = df[brand_col].tolist()
-    categories = df[category_col].tolist() if category_col else [''] * len(df)
-    keep_flags = []
-    for brand, cat in zip(brands, categories):
-        keep = False
+    cats = df[cat_col].tolist() if cat_col else [''] * len(df)
+    keep = []
+    for brand, cat in zip(brands, cats):
+        flag = False
         for item in selected_brands:
             if item == '美的' and brand == '美的':
-                keep = True
+                flag = True
                 break
             if item == '东芝' and brand == '东芝':
-                keep = True
+                flag = True
                 break
             if item == '小天鹅' and brand == '小天鹅':
-                keep = True
+                flag = True
                 break
             if item == 'COLMO' and brand == 'COLMO':
-                keep = True
+                flag = True
                 break
             if item == '美的厨热' and brand == '美的' and cat == '厨热':
-                keep = True
+                flag = True
                 break
             if item == '美的冰箱' and brand == '美的' and cat == '冰箱':
-                keep = True
+                flag = True
                 break
             if item == '美的空调' and brand == '美的' and cat == '空调':
-                keep = True
+                flag = True
                 break
             if item == '洗衣机汇总':
                 if brand == '小天鹅' or (brand == '美的' and cat == '洗衣机'):
-                    keep = True
+                    flag = True
                     break
-        keep_flags.append(keep)
-    return df[keep_flags].copy()
+        keep.append(flag)
+    return df[keep].copy()
 
 # ----------------------------- 辅助函数 -----------------------------
 def get_unique_sorted(series):
@@ -139,28 +128,28 @@ date_range = st.sidebar.date_input("日期范围", [min_date, max_date], min_val
 custom_brands = ['美的', '东芝', '小天鹅', 'COLMO', '美的厨热', '美的冰箱', '美的空调', '洗衣机汇总']
 selected_brands = st.sidebar.multiselect("品牌", custom_brands, default=custom_brands)
 
-# 品类（从客资表获取）
+# 品类
 if '品类' in df_main.columns:
     category_options = get_unique_sorted(df_main['品类'])
 else:
     category_options = []
 selected_categories = st.sidebar.multiselect("品类", category_options, default=category_options)
 
-# 片区（从客资表获取，因为客资表也有片区列）
+# 片区
 if '片区' in df_main.columns:
     region_options = get_unique_sorted(df_main['片区'])
 else:
     region_options = []
 selected_regions = st.sidebar.multiselect("片区", region_options, default=region_options)
 
-# 运营中心（从客资表获取）
+# 运营中心
 if '运营中心' in df_main.columns:
     center_options = get_unique_sorted(df_main['运营中心'])
 else:
     center_options = []
 selected_centers = st.sidebar.multiselect("运营中心", center_options, default=center_options)
 
-# ----------------------------- 数据筛选函数 -----------------------------
+# ----------------------------- 数据筛选 -----------------------------
 def filter_main(df, date_range, categories, regions, centers):
     if '日期' in df.columns and len(date_range) == 2:
         start, end = date_range
@@ -271,7 +260,6 @@ st.plotly_chart(fig_funnel, use_container_width=True)
 # ----------------------------- 折线图（转化率趋势） -----------------------------
 st.header("📈 转化率趋势")
 if '日期' in df_main_filtered.columns and not df_main_filtered['日期'].isna().all():
-    # 按日期聚合客资数据
     daily = df_main_filtered.groupby(df_main_filtered['日期'].dt.date).apply(
         lambda x: pd.Series({
             '总客资': len(x),
@@ -280,11 +268,7 @@ if '日期' in df_main_filtered.columns and not df_main_filtered['日期'].isna(
             '跟进数': len(x[(x['外呼状态'].isin(['高意向', '低意向', '无需外呼'])) & (~x['最新跟进状态'].isin(['未分配', '待查看', '待联系']))]) if '外呼状态' in x.columns and '最新跟进状态' in x.columns else 0
         })
     ).reset_index()
-    # 按日期聚合订单数
-    if '日期' in df_order_filtered.columns:
-        daily_orders = df_order_filtered.groupby(df_order_filtered['日期'].dt.date).size().reset_index(name='成交数')
-    else:
-        daily_orders = pd.DataFrame(columns=['日期', '成交数'])
+    daily_orders = df_order_filtered.groupby(df_order_filtered['日期'].dt.date).size().reset_index(name='成交数') if '日期' in df_order_filtered.columns else pd.DataFrame(columns=['日期', '成交数'])
     daily = daily.merge(daily_orders, on='日期', how='left').fillna(0)
     daily['有效率'] = daily['有效客资'] / daily['总客资'].replace(0, pd.NA)
     daily['分配率'] = daily['分配数'] / daily['有效客资'].replace(0, pd.NA)
