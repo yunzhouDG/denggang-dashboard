@@ -73,11 +73,14 @@ def filter_by_brand(df, brand_selections):
     """根据品牌筛选器过滤DataFrame，返回新DataFrame，避免索引问题"""
     if not brand_selections:
         return df.copy()
-    # 重置索引，避免索引混乱
+    
+    # 复制并重置索引，彻底避免报错
     df = df.reset_index(drop=True).copy()
     has_category = '品类' in df.columns
-    # 初始化全False的布尔数组
-    selected = pd.Series([False] * len(df))
+    
+    # ✅ 修复核心：正确初始化布尔筛选掩码
+    selected = pd.Series([False] * len(df), dtype=bool)
+    
     for item in brand_selections:
         if item == '美的':
             selected |= (df['品牌'] == '美的')
@@ -107,6 +110,8 @@ def filter_by_brand(df, brand_selections):
                 selected |= ((df['品牌'] == '小天鹅') | ((df['品牌'] == '美的') & (df['品类'] == '洗衣机')))
             else:
                 selected |= (df['品牌'] == '小天鹅')
+    
+    # 过滤并返回
     return df[selected].copy()
 
 # ----------------------------- 侧边栏筛选器 -----------------------------
