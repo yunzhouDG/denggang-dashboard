@@ -70,47 +70,43 @@ def get_unique_sorted(series):
     return sorted(series.dropna().unique())
 
 def filter_by_brand(df, brand_selections):
-    """根据品牌筛选器（含组合逻辑）过滤DataFrame"""
+    """根据品牌筛选器（含组合逻辑）过滤DataFrame（修复索引重复问题）"""
     if not brand_selections:
         return df
-    df = df.reset_index(drop=True)
+    # 强制重置索引并复制，避免索引错乱
+    df = df.reset_index(drop=True).copy()
     has_category = '品类' in df.columns
-    conditions = []
+    mask = pd.Series([False] * len(df), index=df.index)  # 初始全False
     for item in brand_selections:
         if item == '美的':
-            conditions.append(df['品牌'] == '美的')
+            mask |= (df['品牌'] == '美的')
         elif item == '东芝':
-            conditions.append(df['品牌'] == '东芝')
+            mask |= (df['品牌'] == '东芝')
         elif item == '小天鹅':
-            conditions.append(df['品牌'] == '小天鹅')
+            mask |= (df['品牌'] == '小天鹅')
         elif item == 'COLMO':
-            conditions.append(df['品牌'] == 'COLMO')
+            mask |= (df['品牌'] == 'COLMO')
         elif item == '美的厨热':
             if has_category:
-                conditions.append((df['品牌'] == '美的') & (df['品类'] == '厨热'))
+                mask |= ((df['品牌'] == '美的') & (df['品类'] == '厨热'))
             else:
-                conditions.append(df['品牌'] == '美的')
+                mask |= (df['品牌'] == '美的')
         elif item == '美的冰箱':
             if has_category:
-                conditions.append((df['品牌'] == '美的') & (df['品类'] == '冰箱'))
+                mask |= ((df['品牌'] == '美的') & (df['品类'] == '冰箱'))
             else:
-                conditions.append(df['品牌'] == '美的')
+                mask |= (df['品牌'] == '美的')
         elif item == '美的空调':
             if has_category:
-                conditions.append((df['品牌'] == '美的') & (df['品类'] == '空调'))
+                mask |= ((df['品牌'] == '美的') & (df['品类'] == '空调'))
             else:
-                conditions.append(df['品牌'] == '美的')
+                mask |= (df['品牌'] == '美的')
         elif item == '洗衣机汇总':
             if has_category:
-                conditions.append((df['品牌'] == '小天鹅') | ((df['品牌'] == '美的') & (df['品类'] == '洗衣机')))
+                mask |= ((df['品牌'] == '小天鹅') | ((df['品牌'] == '美的') & (df['品类'] == '洗衣机')))
             else:
-                conditions.append(df['品牌'] == '小天鹅')
-    if conditions:
-        combined = conditions[0]
-        for cond in conditions[1:]:
-            combined |= cond
-        return df[combined]
-    return df
+                mask |= (df['品牌'] == '小天鹅')
+    return df[mask]
 
 # ----------------------------- 侧边栏筛选器 -----------------------------
 st.sidebar.header("🔍 数据筛选")
@@ -237,6 +233,7 @@ st.plotly_chart(fig_funnel, use_container_width=True)
 # ----------------------------- 折线图（转化率趋势） -----------------------------
 st.header("📈 转化率趋势")
 if not df_main_filtered.empty and not df_main_filtered['日期'].isna().all():
+    # 按日期聚合
     daily = df_main_filtered.groupby(df_main_filtered['日期'].dt.date).apply(
         lambda x: pd.Series({
             '总客资': len(x),
