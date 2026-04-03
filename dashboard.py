@@ -28,7 +28,6 @@ def load_data():
     conn.close()
     os.unlink(tmp_path)
 
-    # 统一列名
     df_main.rename(columns={
         '获取时间': '日期',
         '意向品牌': '品牌',
@@ -62,7 +61,6 @@ def load_data():
 
 df_main, df_order = load_data()
 
-# ----------------------------- 品牌筛选函数（稳健版） -----------------------------
 def check_brand(row, selected_brands):
     brand = row.get('品牌', '')
     category = row.get('品类', '')
@@ -92,11 +90,9 @@ def filter_by_brand(df, selected_brands):
     mask = df.apply(lambda row: check_brand(row, selected_brands), axis=1)
     return df[mask].copy()
 
-# ----------------------------- 辅助函数 -----------------------------
 def get_unique_sorted(series):
     return sorted(series.dropna().unique())
 
-# ----------------------------- 侧边栏筛选器 -----------------------------
 st.sidebar.header("🔍 数据筛选")
 
 min_date = df_main['日期'].min().date() if not df_main['日期'].isna().all() else datetime.today().date()
@@ -115,7 +111,6 @@ selected_regions = st.sidebar.multiselect("片区", region_options, default=regi
 center_options = get_unique_sorted(df_main['运营中心'])
 selected_centers = st.sidebar.multiselect("运营中心", center_options, default=center_options)
 
-# ----------------------------- 数据筛选 -----------------------------
 def filter_main(df, date_range, categories, regions, centers):
     if len(date_range) == 2:
         start, end = date_range
@@ -144,7 +139,6 @@ df_main_filtered = filter_by_brand(df_main_filtered, selected_brands)
 df_order_filtered = filter_order(df_order, date_range, selected_categories, selected_centers)
 df_order_filtered = filter_by_brand(df_order_filtered, selected_brands)
 
-# ----------------------------- 指标卡片 -----------------------------
 st.title("🏬 天猫新零售数据看板")
 col1, col2, col3, col4 = st.columns(4)
 
@@ -162,7 +156,6 @@ with col3:
 with col4:
     st.metric("总金额", f"{total_amount:,.0f} 元")
 
-# 环比
 def calc_change(current, previous):
     return (current - previous) / previous if previous != 0 else None
 
@@ -188,7 +181,6 @@ if month_change is not None:
 else:
     st.sidebar.info("无上月数据")
 
-# ----------------------------- 漏斗图 -----------------------------
 st.header("📉 转化漏斗")
 def get_funnel_metrics(main_df, order_df):
     total = len(main_df)
@@ -211,7 +203,6 @@ fig_funnel = go.Figure(go.Funnel(
 fig_funnel.update_layout(title="转化漏斗")
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# ----------------------------- 折线图（转化率趋势） -----------------------------
 st.header("📈 转化率趋势")
 if not df_main_filtered.empty and not df_main_filtered['日期'].isna().all():
     daily = df_main_filtered.groupby(df_main_filtered['日期'].dt.date).apply(
@@ -239,7 +230,6 @@ if not df_main_filtered.empty and not df_main_filtered['日期'].isna().all():
 else:
     st.warning("无有效日期数据，无法绘制趋势图")
 
-# ----------------------------- 柱状图（各品牌销售额） -----------------------------
 st.header("📊 各品牌销售额")
 if not df_order_filtered.empty and '品牌' in df_order_filtered.columns:
     brand_sales = df_order_filtered.groupby('品牌')['订单金额'].sum().reset_index().sort_values('订单金额', ascending=False).head(10)
@@ -249,7 +239,6 @@ if not df_order_filtered.empty and '品牌' in df_order_filtered.columns:
 else:
     st.info("订单表中无品牌数据或数据为空")
 
-# ----------------------------- 销售额分布 -----------------------------
 st.subheader("销售额分布")
 tab1, tab2, tab3 = st.tabs(["按品类", "按片区", "按运营中心"])
 with tab1:
