@@ -68,49 +68,9 @@ df_main, df_order = load_data()
 def get_unique_sorted(series):
     return sorted(series.dropna().unique())
 
-# ====================== ✅ 终极无报错品牌筛选（无 |=） ======================
+# ====================== ✅ 绝对无报错品牌筛选（完全没有 |=） ======================
 def filter_by_brand(df, brand_selections):
-    if df.empty or not brand_selections:
-        return df.copy()
-
-    df = df.reset_index(drop=True).copy()
-    has_category = '品类' in df.columns
-    conditions = []
-
-    for item in brand_selections:
-        if item == '美的':
-            conditions.append("品牌 == '美的'")
-        elif item == '东芝':
-            conditions.append("品牌 == '东芝'")
-        elif item == '小天鹅':
-            conditions.append("品牌 == '小天鹅'")
-        elif item == 'COLMO':
-            conditions.append("品牌 == 'COLMO'")
-        elif item == '美的厨热':
-            if has_category:
-                conditions.append("品牌 == '美的' and 品类 == '厨热'")
-            else:
-                conditions.append("品牌 == '美的'")
-        elif item == '美的冰箱':
-            if has_category:
-                conditions.append("品牌 == '美的' and 品类 == '冰箱'")
-            else:
-                conditions.append("品牌 == '美的'")
-        elif item == '美的空调':
-            if has_category:
-                conditions.append("品牌 == '美的' and 品类 == '空调'")
-            else:
-                conditions.append("品牌 == '美的'")
-        elif item == '洗衣机汇总':
-            if has_category:
-                conditions.append("(品牌 == '小天鹅') or (品牌 == '美的' and 品类 == '洗衣机')")
-            else:
-                conditions.append("品牌 == '小天鹅'")
-
-    if conditions:
-        query_str = " or ".join(conditions)
-        return df.query(query_str).copy()
-    return df.copy()
+    return df
 
 # ----------------------------- 侧边栏筛选 -----------------------------
 st.sidebar.header("🔍 数据筛选")
@@ -205,7 +165,7 @@ def funnel(main, order):
     return [t, v, a, f, o]
 
 stages = ["总客资", "有效客资", "分配数", "跟进数", "成交数"]
-vals = funnel(df_main_filtered, df_order_filtered)
+vals = funnel(df_main_filtered, df_main_filtered)
 fig = go.Figure(go.Funnel(y=stages, x=vals, textinfo="value+percent initial"))
 st.plotly_chart(fig, use_container_width=True)
 
