@@ -28,28 +28,28 @@ def load_data():
     conn.close()
     os.unlink(tmp_path)
 
-    # 调试：显示原始列名（部署后可在页面顶部看到）
-    st.write("客资明细表原始列名:", list(df_main.columns))
-    st.write("订单表原始列名:", list(df_order.columns))
+    # 重命名列名以统一
+    # 客资明细表
+    df_main.rename(columns={
+        '获取时间': '日期',
+        '意向品牌': '品牌',       # 注意：客资表用意向品牌
+        '运营中心': '运营中心',
+        '片区': '片区',
+        '品类': '品类',
+        '外呼状态': '外呼状态',
+        '最新跟进状态': '最新跟进状态',
+    }, inplace=True, errors='ignore')
+    # 订单表
+    df_order.rename(columns={
+        '日期': '日期',
+        '订单金额': '订单金额',
+        '品牌': '品牌',
+        '品类': '品类',
+        '运中': '运营中心',
+        '片区': '片区',
+    }, inplace=True, errors='ignore')
 
-    # ----- 客资明细表列名映射 -----
-    # 获取时间 -> 日期
-    if '获取时间' in df_main.columns:
-        df_main.rename(columns={'获取时间': '日期'}, inplace=True)
-    # 意向品牌 -> 品牌
-    if '意向品牌' in df_main.columns:
-        df_main.rename(columns={'意向品牌': '品牌'}, inplace=True)
-    # 运营中心保持不变（如果列名就是'运营中心'）
-    # 注意：客资明细表可能没有'片区'列，后续筛选时会跳过
-    # 品类、外呼状态、最新跟进状态假设列名一致
-
-    # ----- 订单表列名映射 -----
-    # 运中 -> 运营中心
-    if '运中' in df_order.columns:
-        df_order.rename(columns={'运中': '运营中心'}, inplace=True)
-    # 日期、订单金额、品牌、品类、片区保持原名
-
-    # 确保日期列是datetime
+    # 日期转换
     if '日期' in df_main.columns:
         df_main['日期'] = pd.to_datetime(df_main['日期'], errors='coerce')
     if '日期' in df_order.columns:
@@ -76,7 +76,6 @@ def filter_by_brand(df, selected_brands):
     if not selected_brands:
         return df
     if '品牌' not in df.columns:
-        # 如果没有品牌列，返回原df（理论上不应该发生）
         return df
     brands = df['品牌'].tolist()
     categories = df['品类'].tolist() if '品类' in df.columns else [''] * len(df)
@@ -119,7 +118,7 @@ def get_unique_sorted(series):
 # ----------------------------- 侧边栏筛选器 -----------------------------
 st.sidebar.header("🔍 数据筛选")
 
-# 日期范围（从客资明细表获取最小最大值，因为可能有更多日期）
+# 日期范围
 if '日期' in df_main.columns and not df_main['日期'].isna().all():
     min_date = df_main['日期'].min().date()
     max_date = df_main['日期'].max().date()
@@ -128,41 +127,24 @@ else:
     max_date = datetime.today().date()
 date_range = st.sidebar.date_input("日期范围", [min_date, max_date], min_value=min_date, max_value=max_date)
 
-# 品牌选项（从客资明细表获取品牌列表）
-brand_options = get_unique_sorted(df_main['品牌']) if '品牌' in df_main.columns else []
-# 自定义品牌组合（固定选项）
+# 品牌选项（自定义组合）
 custom_brands = ['美的', '东芝', '小天鹅', 'COLMO', '美的厨热', '美的冰箱', '美的空调', '洗衣机汇总']
 selected_brands = st.sidebar.multiselect("品牌", custom_brands, default=custom_brands)
 
-# 品类（从客资明细表获取）
+# 品类
 category_options = get_unique_sorted(df_main['品类']) if '品类' in df_main.columns else []
 selected_categories = st.sidebar.multiselect("品类", category_options, default=category_options)
 
-# 片区（从订单表获取，因为客资表可能没有）
-if '片区' in df_order.columns:
-    region_options = get_unique_sorted(df_order['片区'])
-else:
-    region_options = []
+# 片区
+region_options = get_unique_sorted(df_main['片区']) if '片区' in df_main.columns else []
 selected_regions = st.sidebar.multiselect("片区", region_options, default=region_options)
 
-# 运营中心（从客资明细表获取，订单表也有但列名已统一）
+# 运营中心
 center_options = get_unique_sorted(df_main['运营中心']) if '运营中心' in df_main.columns else []
 selected_centers = st.sidebar.multiselect("运营中心", center_options, default=center_options)
 
 # ----------------------------- 数据筛选函数 -----------------------------
-def filter_main(df, date_range, categories, centers):
-    """筛选客资明细表（没有片区）"""
-    if '日期' in df.columns and len(date_range) == 2:
-        start, end = date_range
-        df = df[(df['日期'].dt.date >= start) & (df['日期'].dt.date <= end)]
-    if categories and '品类' in df.columns:
-        df = df[df['品类'].isin(categories)]
-    if centers and '运营中心' in df.columns:
-        df = df[df['运营中心'].isin(centers)]
-    return df
-
-def filter_order(df, date_range, categories, regions, centers):
-    """筛选订单表（有片区）"""
+def filter_main(df, date_range, categories, regions, centers):
     if '日期' in df.columns and len(date_range) == 2:
         start, end = date_range
         df = df[(df['日期'].dt.date >= start) & (df['日期'].dt.date <= end)]
@@ -174,7 +156,19 @@ def filter_order(df, date_range, categories, regions, centers):
         df = df[df['运营中心'].isin(centers)]
     return df
 
-df_main_filtered = filter_main(df_main, date_range, selected_categories, selected_centers)
+def filter_order(df, date_range, categories, regions, centers):
+    if '日期' in df.columns and len(date_range) == 2:
+        start, end = date_range
+        df = df[(df['日期'].dt.date >= start) & (df['日期'].dt.date <= end)]
+    if categories and '品类' in df.columns:
+        df = df[df['品类'].isin(categories)]
+    if regions and '片区' in df.columns:
+        df = df[df['片区'].isin(regions)]
+    if centers and '运营中心' in df.columns:
+        df = df[df['运营中心'].isin(centers)]
+    return df
+
+df_main_filtered = filter_main(df_main, date_range, selected_categories, selected_regions, selected_centers)
 df_main_filtered = filter_by_brand(df_main_filtered, selected_brands)
 
 df_order_filtered = filter_order(df_order, date_range, selected_categories, selected_regions, selected_centers)
@@ -260,6 +254,7 @@ st.plotly_chart(fig_funnel, use_container_width=True)
 # ----------------------------- 折线图（转化率趋势） -----------------------------
 st.header("📈 转化率趋势")
 if '日期' in df_main_filtered.columns and not df_main_filtered['日期'].isna().all():
+    # 按日期聚合客资数据
     daily = df_main_filtered.groupby(df_main_filtered['日期'].dt.date).apply(
         lambda x: pd.Series({
             '总客资': len(x),
@@ -268,7 +263,11 @@ if '日期' in df_main_filtered.columns and not df_main_filtered['日期'].isna(
             '跟进数': len(x[(x['外呼状态'].isin(['高意向', '低意向', '无需外呼'])) & (~x['最新跟进状态'].isin(['未分配', '待查看', '待联系']))]) if '外呼状态' in x.columns and '最新跟进状态' in x.columns else 0
         })
     ).reset_index()
-    daily_orders = df_order_filtered.groupby(df_order_filtered['日期'].dt.date).size().reset_index(name='成交数') if '日期' in df_order_filtered.columns else pd.DataFrame(columns=['日期', '成交数'])
+    # 按日期聚合订单数
+    if '日期' in df_order_filtered.columns:
+        daily_orders = df_order_filtered.groupby(df_order_filtered['日期'].dt.date).size().reset_index(name='成交数')
+    else:
+        daily_orders = pd.DataFrame(columns=['日期', '成交数'])
     daily = daily.merge(daily_orders, on='日期', how='left').fillna(0)
     daily['有效率'] = daily['有效客资'] / daily['总客资'].replace(0, pd.NA)
     daily['分配率'] = daily['分配数'] / daily['有效客资'].replace(0, pd.NA)
