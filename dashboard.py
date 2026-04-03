@@ -31,9 +31,6 @@ st.markdown("""
     padding-top: 1.5rem;
     padding-bottom: 1.5rem;
 }
-.css-1vq4p4l {
-    padding-top: 1rem !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -150,13 +147,12 @@ def get_unique_sorted(series):
     return sorted(series.dropna().unique())
 
 def fmt_wan(x):
-    """金额转为万元"""
     return f"{x/10000:.1f} 万"
 
 # ----------------------------- 侧边栏筛选 -----------------------------
 st.sidebar.header("🔍 数据筛选")
 
-# ========== 关键：中文日期范围 ==========
+# 📅 日期范围（兼容所有版本，零报错）
 st.sidebar.subheader("📅 日期范围")
 if '日期' in df_main.columns and not df_main['日期'].isna().all():
     min_date = df_main['日期'].min().date()
@@ -166,11 +162,10 @@ else:
     max_date = datetime.today().date()
 
 date_range = st.sidebar.date_input(
-    "选择起止日期",
+    "选择日期",
     [min_date, max_date],
     min_value=min_date,
-    max_value=max_date,
-    format="YYYY年MM月DD日"  # 👈 中文日期显示
+    max_value=max_date
 )
 
 # 品牌
@@ -379,4 +374,4 @@ with tab2:
         fig = px.bar(cen, x='运营中心', y='万', color='万', color_continuous_scale='purples')
         st.plotly_chart(fig, use_container_width=True)
 
-st.caption("✅ 数据实时刷新 | 金额单位：万元 | 日期格式：YYYY年MM月DD日")
+st.caption("✅ 数据实时刷新 | 金额单位：万元")
