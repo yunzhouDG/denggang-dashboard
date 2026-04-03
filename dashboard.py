@@ -1,14 +1,20 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import zipfile
+import io
 
 st.set_page_config(page_title="订单金额看板", layout="wide")
 st.title("📊 每日订单金额趋势")
 
-# 读取本地 SQLite 文件（不需要密码）
 @st.cache_data(ttl=86400)
 def load_data():
-    conn = sqlite3.connect('data.db')
+    # 从 zip 文件中读取 SQLite 数据库
+    with zipfile.ZipFile('data.db.zip', 'r') as z:
+        with z.open('data.db') as f:
+            data = f.read()
+    # 创建内存中的数据库连接
+    conn = sqlite3.connect(io.BytesIO(data))
     query = """
         SELECT 
             o.`日期`,
@@ -33,31 +39,4 @@ def load_data():
 
 df = load_data()
 st.success(f"✅ 成功加载 {len(df)} 条数据")
-
-with st.expander("📄 查看关联后的数据"):
-    st.dataframe(df)
-
-st.subheader("📈 每日订单金额趋势")
-date_col = '日期'
-value_col = '订单金额'
-
-df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
-df_valid = df.dropna(subset=[date_col, value_col])
-
-if len(df_valid) > 0:
-    daily = df_valid.groupby(df_valid[date_col].dt.date)[value_col].sum()
-    st.line_chart(daily)
-else:
-    st.warning("没有有效的订单日期或金额数据。")
-
-st.subheader("📊 各品牌订单金额（Top 10）")
-if '品牌' in df.columns and value_col in df.columns:
-    grouped = df.groupby('品牌')[value_col].sum().sort_values(ascending=False).head(10)
-    st.bar_chart(grouped)
-else:
-    st.info("品牌列不存在或金额列缺失。")
-
-st.subheader("📊 各品类订单金额分布")
-if '品类' in df.columns and value_col in df.columns:
-    grouped2 = df.groupby('品类')[value_col].sum().sort_values(ascending=False).head(10)
-    st.bar_chart(grouped2)
+# 后续图表代码不变（省略，请保留之前的图表部分）
