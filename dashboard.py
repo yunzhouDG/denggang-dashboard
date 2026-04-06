@@ -11,7 +11,6 @@ import plotly.graph_objects as go
 st.set_page_config(layout="wide", page_title="天猫新零售数据看板", page_icon="📊")
 
 # ----------------------------- 内置城市经纬度（主要城市） -----------------------------
-# 用于地图展示，缺失的城市会使用默认坐标（北京附近）
 CITY_COORDS = {
     '北京': [116.4074, 39.9042], '上海': [121.4737, 31.2304], '广州': [113.2644, 23.1291],
     '深圳': [114.0579, 22.5431], '杭州': [120.1551, 30.2741], '成都': [104.0668, 30.5728],
@@ -30,7 +29,8 @@ CITY_COORDS = {
 DEFAULT_COORD = [116.4074, 39.9042]  # 北京
 
 def get_city_coord(city_name):
-    """获取城市经纬度，不存在则返回默认"""
+    if not city_name or pd.isna(city_name):
+        return DEFAULT_COORD
     return CITY_COORDS.get(city_name, DEFAULT_COORD)
 
 # ----------------------------- 数据加载 -----------------------------
@@ -92,13 +92,28 @@ def load_data():
 
 df_main, df_order = load_data()
 
+# 在侧边栏显示数据概览
+st.sidebar.subheader("📋 数据概览")
+st.sidebar.write(f"客资表行数: {len(df_main)}")
+st.sidebar.write(f"订单表行数: {len(df_order)}")
+if len(df_main) == 0:
+    st.sidebar.warning("客资表无数据，请检查data.zip内容")
+if len(df_order) == 0:
+    st.sidebar.warning("订单表无数据，请检查data.zip内容")
+
+# 预览数据（前5行）
+with st.sidebar.expander("预览客资表（前5行）"):
+    st.dataframe(df_main.head())
+with st.sidebar.expander("预览订单表（前5行）"):
+    st.dataframe(df_order.head())
+
 # ----------------------------- 工具函数 -----------------------------
 def get_unique_sorted(series):
     if series.empty:
         return []
     return sorted(series.dropna().unique())
 
-# ====================== 绝对安全的品牌筛选（使用 itertuples） ======================
+# ====================== 品牌筛选 ======================
 def filter_by_brand(df, brand_selections):
     if df.empty or not brand_selections:
         return df.copy()
@@ -140,37 +155,33 @@ def filter_by_brand(df, brand_selections):
                 break
     return df[mask].copy()
 
-# ----------------------------- 侧边栏 -----------------------------
+# ----------------------------- 侧边栏筛选 -----------------------------
 st.sidebar.header("🔍 数据筛选")
 
-# 日期范围
-if df_main['日期'].isna().all():
-    min_date = datetime.today().date()
-    max_date = datetime.today().date()
-else:
+# 日期范围（智能默认值）
+if not df_main['日期'].isna().all():
     min_date = df_main['日期'].min().date()
     max_date = df_main['日期'].max().date()
+else:
+    min_date = datetime.today().date()
+    max_date = datetime.today().date()
 date_range = st.sidebar.date_input("日期范围", [min_date, max_date])
 
-# 品牌选项
 brand_options = ['美的', '东芝', '小天鹅', 'COLMO', '美的厨热', '美的冰箱', '美的空调', '洗衣机汇总']
 selected_brands = st.sidebar.multiselect("品牌", brand_options, default=brand_options)
 
-# 品类选项
 if '品类' in df_main.columns:
     category_options = get_unique_sorted(df_main['品类'])
 else:
     category_options = []
 selected_categories = st.sidebar.multiselect("品类", category_options, default=category_options)
 
-# 片区选项
 if '片区' in df_main.columns:
     region_options = get_unique_sorted(df_main['片区'])
 else:
     region_options = []
 selected_regions = st.sidebar.multiselect("片区", region_options, default=region_options)
 
-# 运营中心选项
 if '运营中心' in df_main.columns:
     center_options = get_unique_sorted(df_main['运营中心'])
 else:
@@ -206,6 +217,11 @@ df_main_filtered = filter_by_brand(df_main_filtered, selected_brands)
 df_order_filtered = filter_order(df_order, date_range, selected_categories, selected_centers)
 df_order_filtered = filter_by_brand(df_order_filtered, selected_brands)
 
+# 显示筛选后行数
+st.sidebar.markdown("---")
+st.sidebar.write(f"筛选后客资数: {len(df_main_filtered)}")
+st.sidebar.write(f"筛选后订单数: {len(df_order_filtered)}")
+
 # ----------------------------- 指标卡片 -----------------------------
 st.title("🏬 天猫新零售数据看板")
 col1, col2, col3, col4 = st.columns(4)
@@ -219,6 +235,11 @@ col1.metric("总客资数", f"{total_leads:,}")
 col2.metric("有效客资数", f"{valid_leads:,}")
 col3.metric("成交数", f"{total_orders:,}")
 col4.metric("总金额", f"{total_amount:,.0f} 元")
+
+# 如果数据为空，显示提示并停止后续图表
+if total_leads == 0 and total_orders == 0:
+    st.warning("当前筛选条件下没有数据，请调整筛选条件或检查数据源。")
+    st.stop()
 
 # ----------------------------- 环比 -----------------------------
 def calc_change(c, p):
@@ -243,7 +264,7 @@ mc = calc_change(amt_cur_m, amt_pre_m)
 if mc is not None:
     st.sidebar.metric("月环比", f"{mc:.1%}")
 
-# ----------------------------- 转化漏斗（完整版） -----------------------------
+# ----------------------------- 转化漏斗 -----------------------------
 st.header("📉 转化漏斗")
 
 def funnel(main, order):
@@ -268,7 +289,7 @@ vals = funnel(df_main_filtered, df_order_filtered)
 fig_funnel = go.Figure(go.Funnel(y=stages, x=vals, textinfo="value+percent initial"))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# ----------------------------- 转化率趋势（修复） -----------------------------
+# ----------------------------- 转化率趋势 -----------------------------
 st.header("📈 转化率趋势")
 if not df_main_filtered.empty and '日期' in df_main_filtered.columns:
     # 按天分组
@@ -295,13 +316,15 @@ if not df_main_filtered.empty and '日期' in df_main_filtered.columns:
     fig_trend.update_layout(yaxis_tickformat=".0%", yaxis_title="比率", xaxis_title="日期")
     st.plotly_chart(fig_trend, use_container_width=True)
 else:
-    st.info("数据不足，无法绘制趋势图。")
+    st.info("客资数据为空或缺少日期列，无法绘制趋势图。")
 
 # ----------------------------- 各品牌销售额 -----------------------------
 st.header("📊 各品牌销售额")
 if not df_order_filtered.empty and '品牌' in df_order_filtered.columns:
     bs = df_order_filtered.groupby('品牌')['订单金额'].sum().sort_values(ascending=False).head(10).reset_index()
     st.plotly_chart(px.bar(bs, x='品牌', y='订单金额', color='订单金额', title="Top10 品牌销售额"), use_container_width=True)
+else:
+    st.info("订单数据为空或缺少品牌列。")
 
 st.subheader("销售额分布")
 t1, t2, t3 = st.tabs(["品类", "片区", "运营中心"])
@@ -309,49 +332,61 @@ with t1:
     if not df_order_filtered.empty and '品类' in df_order_filtered.columns:
         c = df_order_filtered.groupby('品类')['订单金额'].sum().reset_index()
         st.plotly_chart(px.bar(c, x='品类', y='订单金额', title="品类销售额"), use_container_width=True)
+    else:
+        st.info("无品类数据")
 with t2:
     if not df_order_filtered.empty and '片区' in df_order_filtered.columns:
         r = df_order_filtered.groupby('片区')['订单金额'].sum().reset_index()
         st.plotly_chart(px.bar(r, x='片区', y='订单金额', title="片区销售额"), use_container_width=True)
+    else:
+        st.info("无片区数据")
 with t3:
     if not df_order_filtered.empty and '运营中心' in df_order_filtered.columns:
         ce = df_order_filtered.groupby('运营中心')['订单金额'].sum().sort_values(ascending=False).head(15).reset_index()
         st.plotly_chart(px.bar(ce, x='运营中心', y='订单金额', title="运营中心销售额"), use_container_width=True)
+    else:
+        st.info("无运营中心数据")
 
-# ----------------------------- 中国地图热力图（市区订单金额） -----------------------------
+# ----------------------------- 中国地图热力图 -----------------------------
 st.header("🗺️ 中国地图 - 市区销售额热力图")
 if not df_order_filtered.empty and '市区' in df_order_filtered.columns:
-    # 聚合各市区订单金额
-    city_amount = df_order_filtered.groupby('市区')['订单金额'].sum().reset_index()
-    city_amount = city_amount.sort_values('订单金额', ascending=False)
-    # 添加经纬度列
-    city_amount['经度'] = city_amount['市区'].apply(lambda x: get_city_coord(x)[0])
-    city_amount['纬度'] = city_amount['市区'].apply(lambda x: get_city_coord(x)[1])
-    # 限制展示前50个城市避免过于密集
-    top_n = 50
-    if len(city_amount) > top_n:
-        city_amount = city_amount.head(top_n)
-    
-    fig_map = px.scatter_mapbox(
-        city_amount,
-        lat='纬度',
-        lon='经度',
-        size='订单金额',
-        color='订单金额',
-        color_continuous_scale='YlOrRd',
-        size_max=40,
-        zoom=3,
-        mapbox_style='open-street-map',
-        text='市区',
-        hover_name='市区',
-        hover_data={'订单金额': ':,.0f', '纬度': False, '经度': False},
-        title='全国各市订单金额分布（气泡大小/颜色代表金额）'
-    )
-    fig_map.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=600)
-    st.plotly_chart(fig_map, use_container_width=True)
-    
-    with st.expander("查看详细数据"):
-        st.dataframe(city_amount[['市区', '订单金额']].style.format({'订单金额': '{:,.0f}'}))
+    # 过滤掉市区为空的行
+    city_data = df_order_filtered[df_order_filtered['市区'].notna() & (df_order_filtered['市区'] != '')]
+    if city_data.empty:
+        st.warning("订单表中「市区」字段全部为空，无法绘制地图。")
+    else:
+        city_amount = city_data.groupby('市区')['订单金额'].sum().reset_index()
+        city_amount = city_amount.sort_values('订单金额', ascending=False)
+        # 添加经纬度
+        city_amount['经度'] = city_amount['市区'].apply(lambda x: get_city_coord(x)[0])
+        city_amount['纬度'] = city_amount['市区'].apply(lambda x: get_city_coord(x)[1])
+        # 去重（理论上已经groupby，不会有重复市区）
+        unique_cities = city_amount.drop_duplicates(subset=['市区'])
+        
+        # 限制显示前100个城市（避免性能问题）
+        if len(unique_cities) > 100:
+            unique_cities = unique_cities.head(100)
+        
+        fig_map = px.scatter_mapbox(
+            unique_cities,
+            lat='纬度',
+            lon='经度',
+            size='订单金额',
+            color='订单金额',
+            color_continuous_scale='YlOrRd',
+            size_max=40,
+            zoom=3,
+            mapbox_style='open-street-map',
+            text='市区',
+            hover_name='市区',
+            hover_data={'订单金额': ':,.0f', '纬度': False, '经度': False},
+            title='全国各市订单金额分布（气泡大小/颜色代表金额）'
+        )
+        fig_map.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=600)
+        st.plotly_chart(fig_map, use_container_width=True)
+        
+        with st.expander("查看详细数据"):
+            st.dataframe(unique_cities[['市区', '订单金额']].style.format({'订单金额': '{:,.0f}'}))
 else:
     st.warning("订单表中没有找到「市区」字段，无法绘制地图。")
 
