@@ -33,7 +33,7 @@ def get_city_coord(city_name):
         return DEFAULT_COORD
     return CITY_COORDS.get(city_name, DEFAULT_COORD)
 
-# ----------------------------- 数据加载 -----------------------------
+# ----------------------------- 数据加载（适配新表结构） -----------------------------
 @st.cache_data(ttl=86400)
 def load_data():
     with zipfile.ZipFile('data.zip', 'r') as z:
@@ -46,50 +46,72 @@ def load_data():
                 tmp.write(source.read())
             tmp_path = tmp.name
     conn = sqlite3.connect(tmp_path)
+    # 根据新表结构读取字段
     df_main = pd.read_sql("SELECT * FROM 客资明细表", conn)
     df_order = pd.read_sql("SELECT * FROM 订单表", conn)
     conn.close()
     os.unlink(tmp_path)
 
-    # 统一列名（先打印原始列名到stderr，用于调试）
-    import sys
-    print("客资表原始列名:", df_main.columns.tolist(), file=sys.stderr)
-    print("订单表原始列名:", df_order.columns.tolist(), file=sys.stderr)
-
-    # 客资表：将可能的日期列名统一为“日期”
-    possible_date_cols = ['获取时间', '日期', '获取日期', 'create_time']
-    for col in possible_date_cols:
-        if col in df_main.columns:
-            df_main.rename(columns={col: '日期'}, inplace=True)
-            break
-    # 意向品牌 -> 品牌
-    if '意向品牌' in df_main.columns:
-        df_main.rename(columns={'意向品牌': '品牌'}, inplace=True)
-    # 订单表：运中 -> 运营中心
-    if '运中' in df_order.columns:
-        df_order.rename(columns={'运中': '运营中心'}, inplace=True)
+    # ---------- 客资明细表字段映射 ----------
+    # 原字段: 获取时间,运营中心,城市,最新跟进状态,外呼状态,意向品牌,品类
+    df_main.rename(columns={
+        '获取时间': '日期',
+        '意向品牌': '品牌',
+        '运营中心': '运营中心',
+        '最新跟进状态': '最新跟进状态',
+        '外呼状态': '外呼状态',
+        '品类': '品类',
+        # '城市' 字段暂时保留但不使用（看板未用到）
+    }, inplace=True, errors='ignore')
     
-    # 确保日期列存在
-    if '日期' not in df_main.columns:
+    # 确保有片区列（看板需要，但客资表没有，填充为'未知'）
+    if '片区' not in df_main.columns:
+        df_main['片区'] = '未知'
+    
+    # 日期转换
+    if '日期' in df_main.columns:
+        df_main['日期'] = pd.to_datetime(df_main['日期'], errors='coerce')
+    else:
         df_main['日期'] = pd.NaT
-    if '日期' not in df_order.columns:
-        df_order['日期'] = pd.NaT
-
-    df_main['日期'] = pd.to_datetime(df_main['日期'], errors='coerce')
-    df_order['日期'] = pd.to_datetime(df_order['日期'], errors='coerce')
-    df_order['订单金额'] = pd.to_numeric(df_order['订单金额'], errors='coerce').fillna(0)
-
+    
     # 填充缺失值
     for col in ['品牌', '品类', '运营中心', '片区']:
         if col in df_main.columns:
             df_main[col] = df_main[col].fillna('未知')
-        if col in df_order.columns:
-            df_order[col] = df_order[col].fillna('未知')
     for col in ['外呼状态', '最新跟进状态']:
         if col not in df_main.columns:
             df_main[col] = ''
+        else:
+            df_main[col] = df_main[col].fillna('')
     
-    # 删除重复列
+    # ---------- 订单表字段映射 ----------
+    # 原字段: 品牌,订单金额,运中,日期,市区,片区,品类
+    df_order.rename(columns={
+        '运中': '运营中心',
+        '市区': '市区',
+        '片区': '片区',
+        '日期': '日期',
+        '品牌': '品牌',
+        '订单金额': '订单金额',
+        '品类': '品类',
+    }, inplace=True, errors='ignore')
+    
+    # 日期转换
+    if '日期' in df_order.columns:
+        df_order['日期'] = pd.to_datetime(df_order['日期'], errors='coerce')
+    else:
+        df_order['日期'] = pd.NaT
+    df_order['订单金额'] = pd.to_numeric(df_order['订单金额'], errors='coerce').fillna(0)
+    
+    for col in ['品牌', '品类', '运营中心', '片区']:
+        if col in df_order.columns:
+            df_order[col] = df_order[col].fillna('未知')
+    if '市区' not in df_order.columns:
+        df_order['市区'] = ''
+    else:
+        df_order['市区'] = df_order['市区'].fillna('')
+    
+    # 删除重复列（安全起见）
     df_main = df_main.loc[:, ~df_main.columns.duplicated()]
     df_order = df_order.loc[:, ~df_order.columns.duplicated()]
     
@@ -167,7 +189,7 @@ def filter_by_brand(df, brand_selections):
 # ----------------------------- 侧边栏筛选 -----------------------------
 st.sidebar.header("🔍 数据筛选")
 
-# 日期范围（仅当日期列有效时）
+# 日期范围
 if '日期' in df_main.columns and not df_main['日期'].isna().all():
     min_date = df_main['日期'].min().date()
     max_date = df_main['日期'].max().date()
@@ -359,7 +381,6 @@ if not df_order_filtered.empty and '市区' in df_order_filtered.columns:
         if len(unique_cities) > 100:
             unique_cities = unique_cities.head(100)
         
-        # 检查是否所有城市都落在默认坐标
         if (unique_cities['经度'] == DEFAULT_COORD[0]).all() and (unique_cities['纬度'] == DEFAULT_COORD[1]).all():
             st.warning("所有城市的经纬度均为默认值（北京），请补充实际城市经纬度或检查市区名称是否正确。")
         
