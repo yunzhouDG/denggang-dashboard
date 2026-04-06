@@ -7,6 +7,7 @@ import os
 from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
+import numpy as np  # 新增，用于安全的布尔运算
 
 st.set_page_config(layout="wide", page_title="天猫新零售数据看板", page_icon="📊")
 
@@ -65,36 +66,48 @@ df_main, df_order = load_data()
 def get_unique_sorted(series):
     return sorted(series.dropna().unique())
 
-# ====================== ✅ 完全重写：无 |=，无任何报错风险 ======================
+# ====================== 修复后的品牌筛选（无索引对齐错误） ======================
 def filter_by_brand(df, brand_selections):
     if df.empty or not brand_selections:
         return df.copy()
     
     df = df.reset_index(drop=True).copy()
     has_cat = '品类' in df.columns
-    mask = pd.Series([False] * len(df), dtype='bool')
+    mask = np.zeros(len(df), dtype=bool)   # 使用numpy数组避免索引问题
 
     for b in brand_selections:
         if b == '美的':
-            cond = df['品牌'] == '美的'
+            cond = (df['品牌'] == '美的').values
         elif b == '东芝':
-            cond = df['品牌'] == '东芝'
+            cond = (df['品牌'] == '东芝').values
         elif b == '小天鹅':
-            cond = df['品牌'] == '小天鹅'
+            cond = (df['品牌'] == '小天鹅').values
         elif b == 'COLMO':
-            cond = df['品牌'] == 'COLMO'
+            cond = (df['品牌'] == 'COLMO').values
         elif b == '美的厨热':
-            cond = (df['品牌'] == '美的') & (df['品类'] == '厨热') if has_cat else (df['品牌'] == '美的')
+            if has_cat:
+                cond = ((df['品牌'] == '美的') & (df['品类'] == '厨热')).values
+            else:
+                cond = (df['品牌'] == '美的').values
         elif b == '美的冰箱':
-            cond = (df['品牌'] == '美的') & (df['品类'] == '冰箱') if has_cat else (df['品牌'] == '美的')
+            if has_cat:
+                cond = ((df['品牌'] == '美的') & (df['品类'] == '冰箱')).values
+            else:
+                cond = (df['品牌'] == '美的').values
         elif b == '美的空调':
-            cond = (df['品牌'] == '美的') & (df['品类'] == '空调') if has_cat else (df['品牌'] == '美的')
+            if has_cat:
+                cond = ((df['品牌'] == '美的') & (df['品类'] == '空调')).values
+            else:
+                cond = (df['品牌'] == '美的').values
         elif b == '洗衣机汇总':
-            cond = (df['品牌'] == '小天鹅') | ((df['品牌'] == '美的') & (df['品类'] == '洗衣机')) if has_cat else (df['品牌'] == '小天鹅')
+            if has_cat:
+                cond = ((df['品牌'] == '小天鹅') | ((df['品牌'] == '美的') & (df['品类'] == '洗衣机'))).values
+            else:
+                cond = (df['品牌'] == '小天鹅').values
         else:
-            cond = pd.Series([False]*len(df))
+            cond = np.zeros(len(df), dtype=bool)
         
-        mask = mask | cond  # 非原地操作，绝对安全
+        mask = np.logical_or(mask, cond)   # 安全合并
 
     return df[mask].copy()
 
@@ -242,34 +255,32 @@ with t3:
         ce = df_order_filtered.groupby('运营中心')['订单金额'].sum().sort_values(ascending=False).head(15).reset_index()
         st.plotly_chart(px.bar(ce, x='运营中心', y='订单金额'), use_container_width=True)
 
-st.caption("数据实时更新 | 有效客资：高/低意向/无需外呼")
-# ----------------------------- 市区订单热力图 -----------------------------
+# ----------------------------- 市区订单热力图（新增） -----------------------------
 st.header("🗺️ 市区订单热力图")
 if '市区' in df_order_filtered.columns:
     # 按市区聚合订单金额
     city_amount = df_order_filtered.groupby('市区')['订单金额'].sum().reset_index()
     city_amount = city_amount.sort_values('订单金额', ascending=False)
-
-    # 限制显示前20个市区（避免图表过于拥挤）
+    
     top_n = 20
     if len(city_amount) > top_n:
         city_amount = city_amount.head(top_n)
-
-    # 绘制条形图，颜色映射订单金额（热力色）
+    
     fig_city = px.bar(
         city_amount,
         x='市区',
         y='订单金额',
         color='订单金额',
-        color_continuous_scale='YlOrRd',  # 黄色到红色，热力感
+        color_continuous_scale='YlOrRd',
         title=f'各市区订单金额分布（Top{top_n}）',
         labels={'订单金额': '订单金额（元）', '市区': '市区'}
     )
     fig_city.update_layout(xaxis_tickangle=-45)
     st.plotly_chart(fig_city, use_container_width=True)
-
-    # 可选：显示表格数据
+    
     with st.expander("查看详细数据"):
         st.dataframe(city_amount.style.format({'订单金额': '{:,.0f}'}))
 else:
     st.warning("订单表中没有找到「市区」字段，无法绘制热力图。")
+
+st.caption("数据实时更新 | 有效客资：高/低意向/无需外呼")
