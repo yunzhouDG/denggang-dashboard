@@ -65,9 +65,12 @@ df_main, df_order = load_data()
 def get_unique_sorted(series):
     return sorted(series.dropna().unique())
 
-# ====================== 绝对安全的品牌筛选（纯Python掩码，无索引问题） ======================
+# ====================== 安全的品牌筛选（防御性检查） ======================
 def filter_by_brand(df, brand_selections):
     if df.empty or not brand_selections:
+        return df.copy()
+    if '品牌' not in df.columns:
+        # 没有品牌列，无法筛选，返回原数据
         return df.copy()
     
     df = df.reset_index(drop=True).copy()
@@ -210,7 +213,6 @@ st.plotly_chart(fig, use_container_width=True)
 # ----------------------------- 趋势 -----------------------------
 st.header("📈 转化率趋势")
 if not df_main_filtered.empty:
-    # 确保日期分组时索引不重复
     daily = df_main_filtered.groupby(df_main_filtered['日期'].dt.date).apply(
         lambda x: pd.Series({
             '总客资':len(x),
@@ -255,7 +257,7 @@ with t3:
         ce = df_order_filtered.groupby('运营中心')['订单金额'].sum().sort_values(ascending=False).head(15).reset_index()
         st.plotly_chart(px.bar(ce, x='运营中心', y='订单金额'), use_container_width=True)
 
-# ----------------------------- 市区订单热力图（新增） -----------------------------
+# ----------------------------- 市区订单热力图 -----------------------------
 st.header("🗺️ 市区订单热力图")
 if '市区' in df_order_filtered.columns:
     city_amount = df_order_filtered.groupby('市区')['订单金额'].sum().reset_index()
