@@ -57,6 +57,10 @@ def load_data():
     for col in ['外呼状态', '最新跟进状态']:
         if col not in df_main.columns:
             df_main[col] = ''
+    
+    # 重置索引，确保唯一性
+    df_main = df_main.reset_index(drop=True)
+    df_order = df_order.reset_index(drop=True)
     return df_main, df_order
 
 df_main, df_order = load_data()
@@ -65,44 +69,59 @@ df_main, df_order = load_data()
 def get_unique_sorted(series):
     return sorted(series.dropna().unique())
 
-# ====================== 绝对安全的品牌筛选（逐行判断，无索引错误） ======================
+# ====================== 品牌筛选（安全向量化版本） ======================
 def filter_by_brand(df, brand_selections):
     if df.empty or not brand_selections:
         return df.copy()
     
+    # 重置索引，确保唯一且连续
     df = df.reset_index(drop=True).copy()
     has_cat = '品类' in df.columns
     
-    # 预先填充缺失值，避免比较时出错
-    if '品牌' in df.columns:
-        df['品牌'] = df['品牌'].fillna('未知')
-    if has_cat:
-        df['品类'] = df['品类'].fillna('未知')
+    # 确保品牌列存在
+    if '品牌' not in df.columns:
+        return df
     
-    def row_matches(row):
-        brand = row['品牌']
-        cat = row['品类'] if has_cat else None
+    # 初始化全假掩码
+    mask = pd.Series([False] * len(df), index=df.index)
+    
+    for b in brand_selections:
+        if b == '美的':
+            cond = (df['品牌'] == '美的')
+        elif b == '东芝':
+            cond = (df['品牌'] == '东芝')
+        elif b == '小天鹅':
+            cond = (df['品牌'] == '小天鹅')
+        elif b == 'COLMO':
+            cond = (df['品牌'] == 'COLMO')
+        elif b == '美的厨热':
+            if has_cat:
+                cond = (df['品牌'] == '美的') & (df['品类'] == '厨热')
+            else:
+                cond = (df['品牌'] == '美的')
+        elif b == '美的冰箱':
+            if has_cat:
+                cond = (df['品牌'] == '美的') & (df['品类'] == '冰箱')
+            else:
+                cond = (df['品牌'] == '美的')
+        elif b == '美的空调':
+            if has_cat:
+                cond = (df['品牌'] == '美的') & (df['品类'] == '空调')
+            else:
+                cond = (df['品牌'] == '美的')
+        elif b == '洗衣机汇总':
+            if has_cat:
+                cond = (df['品牌'] == '小天鹅') | ((df['品牌'] == '美的') & (df['品类'] == '洗衣机'))
+            else:
+                cond = (df['品牌'] == '小天鹅')
+        else:
+            continue
         
-        for b in brand_selections:
-            if b == '美的' and brand == '美的':
-                return True
-            if b == '东芝' and brand == '东芝':
-                return True
-            if b == '小天鹅' and brand == '小天鹅':
-                return True
-            if b == 'COLMO' and brand == 'COLMO':
-                return True
-            if b == '美的厨热' and brand == '美的' and cat == '厨热':
-                return True
-            if b == '美的冰箱' and brand == '美的' and cat == '冰箱':
-                return True
-            if b == '美的空调' and brand == '美的' and cat == '空调':
-                return True
-            if b == '洗衣机汇总' and (brand == '小天鹅' or (brand == '美的' and cat == '洗衣机')):
-                return True
-        return False
+        # 确保 cond 是 Series 且索引与 df 一致
+        if isinstance(cond, pd.Series):
+            cond = cond.reindex(df.index, fill_value=False)
+        mask = mask | cond
     
-    mask = df.apply(row_matches, axis=1)
     return df[mask].copy()
 
 # ----------------------------- 侧边栏 -----------------------------
@@ -126,6 +145,7 @@ selected_centers = st.sidebar.multiselect("运营中心", center_options, defaul
 
 # ----------------------------- 筛选 -----------------------------
 def filter_main(df, date_range, categories, regions, centers):
+    df = df.reset_index(drop=True)
     if len(date_range) == 2:
         s, e = date_range
         df = df[(df['日期'].dt.date >= s) & (df['日期'].dt.date <= e)]
@@ -138,6 +158,7 @@ def filter_main(df, date_range, categories, regions, centers):
     return df
 
 def filter_order(df, date_range, categories, centers):
+    df = df.reset_index(drop=True)
     if len(date_range) == 2:
         s, e = date_range
         df = df[(df['日期'].dt.date >= s) & (df['日期'].dt.date <= e)]
@@ -249,7 +270,7 @@ with t3:
         ce = df_order_filtered.groupby('运营中心')['订单金额'].sum().sort_values(ascending=False).head(15).reset_index()
         st.plotly_chart(px.bar(ce, x='运营中心', y='订单金额'), use_container_width=True)
 
-# ----------------------------- 市区订单热力图（新增） -----------------------------
+# ----------------------------- 市区订单热力图 -----------------------------
 st.header("🗺️ 市区订单热力图")
 if '市区' in df_order_filtered.columns:
     city_amount = df_order_filtered.groupby('市区')['订单金额'].sum().reset_index()
