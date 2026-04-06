@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 
 st.set_page_config(layout="wide", page_title="天猫新零售数据看板", page_icon="📊")
 
-# ----------------------------- 内置城市经纬度（主要城市） -----------------------------
+# ----------------------------- 内置城市经纬度 -----------------------------
 CITY_COORDS = {
     '北京': [116.4074, 39.9042], '上海': [121.4737, 31.2304], '广州': [113.2644, 23.1291],
     '深圳': [114.0579, 22.5431], '杭州': [120.1551, 30.2741], '成都': [104.0668, 30.5728],
@@ -26,14 +26,14 @@ CITY_COORDS = {
     '乌鲁木齐': [87.6168, 43.8256], '呼和浩特': [111.7510, 40.8415], '银川': [106.2309, 38.4872],
     '西宁': [101.7782, 36.6232], '拉萨': [91.1409, 29.6565], '海口': [110.1999, 20.0440],
 }
-DEFAULT_COORD = [116.4074, 39.9042]  # 北京
+DEFAULT_COORD = [116.4074, 39.9042]
 
 def get_city_coord(city_name):
     if not city_name or pd.isna(city_name):
         return DEFAULT_COORD
     return CITY_COORDS.get(city_name, DEFAULT_COORD)
 
-# ----------------------------- 数据加载 -----------------------------
+# ----------------------------- 数据加载（修复重复列） -----------------------------
 @st.cache_data(ttl=86400)
 def load_data():
     with zipfile.ZipFile('data.zip', 'r') as z:
@@ -68,6 +68,10 @@ def load_data():
         '品类': '品类',
         '运中': '运营中心'
     }, inplace=True, errors='ignore')
+
+    # 删除重复列（保留第一次出现的列）
+    df_main = df_main.loc[:, ~df_main.columns.duplicated()]
+    df_order = df_order.loc[:, ~df_order.columns.duplicated()]
 
     # 确保日期列存在
     if '日期' not in df_main.columns:
@@ -158,7 +162,7 @@ def filter_by_brand(df, brand_selections):
 # ----------------------------- 侧边栏筛选 -----------------------------
 st.sidebar.header("🔍 数据筛选")
 
-# 日期范围（智能默认值）
+# 日期范围
 if not df_main['日期'].isna().all():
     min_date = df_main['日期'].min().date()
     max_date = df_main['日期'].max().date()
@@ -350,20 +354,15 @@ with t3:
 # ----------------------------- 中国地图热力图 -----------------------------
 st.header("🗺️ 中国地图 - 市区销售额热力图")
 if not df_order_filtered.empty and '市区' in df_order_filtered.columns:
-    # 过滤掉市区为空的行
     city_data = df_order_filtered[df_order_filtered['市区'].notna() & (df_order_filtered['市区'] != '')]
     if city_data.empty:
         st.warning("订单表中「市区」字段全部为空，无法绘制地图。")
     else:
         city_amount = city_data.groupby('市区')['订单金额'].sum().reset_index()
         city_amount = city_amount.sort_values('订单金额', ascending=False)
-        # 添加经纬度
         city_amount['经度'] = city_amount['市区'].apply(lambda x: get_city_coord(x)[0])
         city_amount['纬度'] = city_amount['市区'].apply(lambda x: get_city_coord(x)[1])
-        # 去重（理论上已经groupby，不会有重复市区）
         unique_cities = city_amount.drop_duplicates(subset=['市区'])
-        
-        # 限制显示前100个城市（避免性能问题）
         if len(unique_cities) > 100:
             unique_cities = unique_cities.head(100)
         
