@@ -33,7 +33,7 @@ def get_city_coord(city_name):
         return DEFAULT_COORD
     return CITY_COORDS.get(city_name, DEFAULT_COORD)
 
-# ----------------------------- 数据加载（适配新表结构） -----------------------------
+# ----------------------------- 数据加载（直接使用原始列名） -----------------------------
 @st.cache_data(ttl=86400)
 def load_data():
     with zipfile.ZipFile('data.zip', 'r') as z:
@@ -46,75 +46,81 @@ def load_data():
                 tmp.write(source.read())
             tmp_path = tmp.name
     conn = sqlite3.connect(tmp_path)
-    # 根据新表结构读取字段
+    # 读取原始表（不修改列名）
     df_main = pd.read_sql("SELECT * FROM 客资明细表", conn)
     df_order = pd.read_sql("SELECT * FROM 订单表", conn)
     conn.close()
     os.unlink(tmp_path)
 
-    # ---------- 客资明细表字段映射 ----------
-    # 原字段: 获取时间,运营中心,城市,最新跟进状态,外呼状态,意向品牌,品类
-    df_main.rename(columns={
-        '获取时间': '日期',
-        '意向品牌': '品牌',
-        '运营中心': '运营中心',
-        '最新跟进状态': '最新跟进状态',
-        '外呼状态': '外呼状态',
-        '品类': '品类',
-        # '城市' 字段暂时保留但不使用（看板未用到）
-    }, inplace=True, errors='ignore')
-    
-    # 确保有片区列（看板需要，但客资表没有，填充为'未知'）
-    if '片区' not in df_main.columns:
-        df_main['片区'] = '未知'
-    
-    # 日期转换
-    if '日期' in df_main.columns:
-        df_main['日期'] = pd.to_datetime(df_main['日期'], errors='coerce')
+    # 客资表原始列名: 获取时间, 运营中心, 城市, 最新跟进状态, 外呼状态, 意向品牌, 品类
+    # 订单表原始列名: 品牌, 订单金额, 运中, 日期, 市区, 片区, 品类
+
+    # 日期处理：客资表日期列是“获取时间”，订单表日期列是“日期”
+    if '获取时间' in df_main.columns:
+        df_main['日期'] = pd.to_datetime(df_main['获取时间'], errors='coerce')
     else:
         df_main['日期'] = pd.NaT
-    
-    # 填充缺失值
-    for col in ['品牌', '品类', '运营中心', '片区']:
-        if col in df_main.columns:
-            df_main[col] = df_main[col].fillna('未知')
-    for col in ['外呼状态', '最新跟进状态']:
-        if col not in df_main.columns:
-            df_main[col] = ''
-        else:
-            df_main[col] = df_main[col].fillna('')
-    
-    # ---------- 订单表字段映射 ----------
-    # 原字段: 品牌,订单金额,运中,日期,市区,片区,品类
-    df_order.rename(columns={
-        '运中': '运营中心',
-        '市区': '市区',
-        '片区': '片区',
-        '日期': '日期',
-        '品牌': '品牌',
-        '订单金额': '订单金额',
-        '品类': '品类',
-    }, inplace=True, errors='ignore')
-    
-    # 日期转换
+
     if '日期' in df_order.columns:
         df_order['日期'] = pd.to_datetime(df_order['日期'], errors='coerce')
     else:
         df_order['日期'] = pd.NaT
+
+    # 订单金额处理
     df_order['订单金额'] = pd.to_numeric(df_order['订单金额'], errors='coerce').fillna(0)
-    
-    for col in ['品牌', '品类', '运营中心', '片区']:
-        if col in df_order.columns:
-            df_order[col] = df_order[col].fillna('未知')
-    if '市区' not in df_order.columns:
-        df_order['市区'] = ''
+
+    # 填充缺失值（使用原始列名）
+    # 客资表：意向品牌 -> 品牌（用于筛选），品类，运营中心，片区（可能不存在，补充）
+    if '意向品牌' in df_main.columns:
+        df_main['品牌'] = df_main['意向品牌'].fillna('未知')
     else:
+        df_main['品牌'] = '未知'
+    if '品类' in df_main.columns:
+        df_main['品类'] = df_main['品类'].fillna('未知')
+    else:
+        df_main['品类'] = '未知'
+    if '运营中心' in df_main.columns:
+        df_main['运营中心'] = df_main['运营中心'].fillna('未知')
+    else:
+        df_main['运营中心'] = '未知'
+    # 客资表没有片区，添加一列并设为“未知”
+    df_main['片区'] = '未知'
+    # 外呼状态、最新跟进状态
+    if '外呼状态' in df_main.columns:
+        df_main['外呼状态'] = df_main['外呼状态'].fillna('')
+    else:
+        df_main['外呼状态'] = ''
+    if '最新跟进状态' in df_main.columns:
+        df_main['最新跟进状态'] = df_main['最新跟进状态'].fillna('')
+    else:
+        df_main['最新跟进状态'] = ''
+
+    # 订单表：品牌，品类，运营中心（运中），片区，市区
+    if '品牌' in df_order.columns:
+        df_order['品牌'] = df_order['品牌'].fillna('未知')
+    else:
+        df_order['品牌'] = '未知'
+    if '品类' in df_order.columns:
+        df_order['品类'] = df_order['品类'].fillna('未知')
+    else:
+        df_order['品类'] = '未知'
+    if '运中' in df_order.columns:
+        df_order['运营中心'] = df_order['运中'].fillna('未知')
+    else:
+        df_order['运营中心'] = '未知'
+    if '片区' in df_order.columns:
+        df_order['片区'] = df_order['片区'].fillna('未知')
+    else:
+        df_order['片区'] = '未知'
+    if '市区' in df_order.columns:
         df_order['市区'] = df_order['市区'].fillna('')
-    
-    # 删除重复列（安全起见）
+    else:
+        df_order['市区'] = ''
+
+    # 删除重复列（如果有）
     df_main = df_main.loc[:, ~df_main.columns.duplicated()]
     df_order = df_order.loc[:, ~df_order.columns.duplicated()]
-    
+
     return df_main, df_order
 
 df_main, df_order = load_data()
@@ -123,8 +129,8 @@ df_main, df_order = load_data()
 st.sidebar.subheader("📋 数据诊断")
 st.sidebar.write(f"客资表行数: {len(df_main)}")
 st.sidebar.write(f"订单表行数: {len(df_order)}")
-st.sidebar.write("客资表列名:", df_main.columns.tolist())
-st.sidebar.write("订单表列名:", df_order.columns.tolist())
+st.sidebar.write("客资表列名（关键）:", [c for c in df_main.columns if c in ['日期','品牌','品类','运营中心','片区','外呼状态','最新跟进状态']])
+st.sidebar.write("订单表列名（关键）:", [c for c in df_order.columns if c in ['日期','品牌','品类','运营中心','片区','市区','订单金额']])
 if '日期' in df_main.columns:
     st.sidebar.write(f"客资表日期范围: {df_main['日期'].min()} 至 {df_main['日期'].max()}")
 else:
@@ -135,9 +141,9 @@ if len(df_order) == 0:
     st.sidebar.error("订单表无数据")
 
 with st.sidebar.expander("预览客资表（前5行）"):
-    st.dataframe(df_main.head())
+    st.dataframe(df_main[['日期','品牌','品类','运营中心','片区','外呼状态','最新跟进状态']].head())
 with st.sidebar.expander("预览订单表（前5行）"):
-    st.dataframe(df_order.head())
+    st.dataframe(df_order[['日期','品牌','品类','运营中心','片区','市区','订单金额']].head())
 
 # ----------------------------- 工具函数 -----------------------------
 def get_unique_sorted(series):
