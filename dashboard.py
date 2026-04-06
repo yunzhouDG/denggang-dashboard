@@ -65,52 +65,45 @@ df_main, df_order = load_data()
 def get_unique_sorted(series):
     return sorted(series.dropna().unique())
 
-# ====================== 稳健的品牌筛选（无索引错误） ======================
+# ====================== 绝对安全的品牌筛选（逐行判断，无索引错误） ======================
 def filter_by_brand(df, brand_selections):
     if df.empty or not brand_selections:
         return df.copy()
     
     df = df.reset_index(drop=True).copy()
     has_cat = '品类' in df.columns
-    conditions = []   # 存储每个品牌选项的布尔Series
-
-    for b in brand_selections:
-        if b == '美的':
-            conditions.append(df['品牌'] == '美的')
-        elif b == '东芝':
-            conditions.append(df['品牌'] == '东芝')
-        elif b == '小天鹅':
-            conditions.append(df['品牌'] == '小天鹅')
-        elif b == 'COLMO':
-            conditions.append(df['品牌'] == 'COLMO')
-        elif b == '美的厨热':
-            if has_cat:
-                conditions.append((df['品牌'] == '美的') & (df['品类'] == '厨热'))
-            else:
-                conditions.append(df['品牌'] == '美的')
-        elif b == '美的冰箱':
-            if has_cat:
-                conditions.append((df['品牌'] == '美的') & (df['品类'] == '冰箱'))
-            else:
-                conditions.append(df['品牌'] == '美的')
-        elif b == '美的空调':
-            if has_cat:
-                conditions.append((df['品牌'] == '美的') & (df['品类'] == '空调'))
-            else:
-                conditions.append(df['品牌'] == '美的')
-        elif b == '洗衣机汇总':
-            if has_cat:
-                conditions.append((df['品牌'] == '小天鹅') | ((df['品牌'] == '美的') & (df['品类'] == '洗衣机')))
-            else:
-                conditions.append(df['品牌'] == '小天鹅')
-        # 其他未知选项忽略
-
-    if conditions:
-        # 合并所有条件（只要满足任一条件即可）
-        combined = pd.concat(conditions, axis=1).any(axis=1)
-        return df[combined].copy()
-    else:
-        return df
+    
+    # 预先填充缺失值，避免比较时出错
+    if '品牌' in df.columns:
+        df['品牌'] = df['品牌'].fillna('未知')
+    if has_cat:
+        df['品类'] = df['品类'].fillna('未知')
+    
+    def row_matches(row):
+        brand = row['品牌']
+        cat = row['品类'] if has_cat else None
+        
+        for b in brand_selections:
+            if b == '美的' and brand == '美的':
+                return True
+            if b == '东芝' and brand == '东芝':
+                return True
+            if b == '小天鹅' and brand == '小天鹅':
+                return True
+            if b == 'COLMO' and brand == 'COLMO':
+                return True
+            if b == '美的厨热' and brand == '美的' and cat == '厨热':
+                return True
+            if b == '美的冰箱' and brand == '美的' and cat == '冰箱':
+                return True
+            if b == '美的空调' and brand == '美的' and cat == '空调':
+                return True
+            if b == '洗衣机汇总' and (brand == '小天鹅' or (brand == '美的' and cat == '洗衣机')):
+                return True
+        return False
+    
+    mask = df.apply(row_matches, axis=1)
+    return df[mask].copy()
 
 # ----------------------------- 侧边栏 -----------------------------
 st.sidebar.header("🔍 数据筛选")
