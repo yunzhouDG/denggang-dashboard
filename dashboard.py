@@ -33,7 +33,7 @@ def get_city_coord(city_name):
         return DEFAULT_COORD
     return CITY_COORDS.get(city_name, DEFAULT_COORD)
 
-# ----------------------------- 数据加载（修复重复列） -----------------------------
+# ----------------------------- 数据加载 -----------------------------
 @st.cache_data(ttl=86400)
 def load_data():
     with zipfile.ZipFile('data.zip', 'r') as z:
@@ -51,28 +51,24 @@ def load_data():
     conn.close()
     os.unlink(tmp_path)
 
-    # 重命名列（忽略不存在的列）
-    df_main.rename(columns={
-        '获取时间': '日期',
-        '意向品牌': '品牌',
-        '运营中心': '运营中心',
-        '片区': '片区',
-        '品类': '品类',
-        '外呼状态': '外呼状态',
-        '最新跟进状态': '最新跟进状态',
-    }, inplace=True, errors='ignore')
-    df_order.rename(columns={
-        '日期': '日期',
-        '订单金额': '订单金额',
-        '品牌': '品牌',
-        '品类': '品类',
-        '运中': '运营中心'
-    }, inplace=True, errors='ignore')
+    # 统一列名（先打印原始列名到stderr，用于调试）
+    import sys
+    print("客资表原始列名:", df_main.columns.tolist(), file=sys.stderr)
+    print("订单表原始列名:", df_order.columns.tolist(), file=sys.stderr)
 
-    # 删除重复列（保留第一次出现的列）
-    df_main = df_main.loc[:, ~df_main.columns.duplicated()]
-    df_order = df_order.loc[:, ~df_order.columns.duplicated()]
-
+    # 客资表：将可能的日期列名统一为“日期”
+    possible_date_cols = ['获取时间', '日期', '获取日期', 'create_time']
+    for col in possible_date_cols:
+        if col in df_main.columns:
+            df_main.rename(columns={col: '日期'}, inplace=True)
+            break
+    # 意向品牌 -> 品牌
+    if '意向品牌' in df_main.columns:
+        df_main.rename(columns={'意向品牌': '品牌'}, inplace=True)
+    # 订单表：运中 -> 运营中心
+    if '运中' in df_order.columns:
+        df_order.rename(columns={'运中': '运营中心'}, inplace=True)
+    
     # 确保日期列存在
     if '日期' not in df_main.columns:
         df_main['日期'] = pd.NaT
@@ -92,20 +88,30 @@ def load_data():
     for col in ['外呼状态', '最新跟进状态']:
         if col not in df_main.columns:
             df_main[col] = ''
+    
+    # 删除重复列
+    df_main = df_main.loc[:, ~df_main.columns.duplicated()]
+    df_order = df_order.loc[:, ~df_order.columns.duplicated()]
+    
     return df_main, df_order
 
 df_main, df_order = load_data()
 
-# 在侧边栏显示数据概览
-st.sidebar.subheader("📋 数据概览")
+# ----------------------------- 侧边栏诊断信息 -----------------------------
+st.sidebar.subheader("📋 数据诊断")
 st.sidebar.write(f"客资表行数: {len(df_main)}")
 st.sidebar.write(f"订单表行数: {len(df_order)}")
+st.sidebar.write("客资表列名:", df_main.columns.tolist())
+st.sidebar.write("订单表列名:", df_order.columns.tolist())
+if '日期' in df_main.columns:
+    st.sidebar.write(f"客资表日期范围: {df_main['日期'].min()} 至 {df_main['日期'].max()}")
+else:
+    st.sidebar.error("客资表中没有日期列！")
 if len(df_main) == 0:
-    st.sidebar.warning("客资表无数据，请检查data.zip内容")
+    st.sidebar.error("客资表无数据")
 if len(df_order) == 0:
-    st.sidebar.warning("订单表无数据，请检查data.zip内容")
+    st.sidebar.error("订单表无数据")
 
-# 预览数据（前5行）
 with st.sidebar.expander("预览客资表（前5行）"):
     st.dataframe(df_main.head())
 with st.sidebar.expander("预览订单表（前5行）"):
@@ -117,7 +123,6 @@ def get_unique_sorted(series):
         return []
     return sorted(series.dropna().unique())
 
-# ====================== 品牌筛选 ======================
 def filter_by_brand(df, brand_selections):
     if df.empty or not brand_selections:
         return df.copy()
@@ -162,39 +167,30 @@ def filter_by_brand(df, brand_selections):
 # ----------------------------- 侧边栏筛选 -----------------------------
 st.sidebar.header("🔍 数据筛选")
 
-# 日期范围
-if not df_main['日期'].isna().all():
+# 日期范围（仅当日期列有效时）
+if '日期' in df_main.columns and not df_main['日期'].isna().all():
     min_date = df_main['日期'].min().date()
     max_date = df_main['日期'].max().date()
+    date_range = st.sidebar.date_input("日期范围", [min_date, max_date])
 else:
-    min_date = datetime.today().date()
-    max_date = datetime.today().date()
-date_range = st.sidebar.date_input("日期范围", [min_date, max_date])
+    date_range = [datetime.today().date(), datetime.today().date()]
+    st.sidebar.warning("客资表缺少有效日期列，日期筛选无效")
 
 brand_options = ['美的', '东芝', '小天鹅', 'COLMO', '美的厨热', '美的冰箱', '美的空调', '洗衣机汇总']
 selected_brands = st.sidebar.multiselect("品牌", brand_options, default=brand_options)
 
-if '品类' in df_main.columns:
-    category_options = get_unique_sorted(df_main['品类'])
-else:
-    category_options = []
+category_options = get_unique_sorted(df_main['品类']) if '品类' in df_main.columns else []
 selected_categories = st.sidebar.multiselect("品类", category_options, default=category_options)
 
-if '片区' in df_main.columns:
-    region_options = get_unique_sorted(df_main['片区'])
-else:
-    region_options = []
+region_options = get_unique_sorted(df_main['片区']) if '片区' in df_main.columns else []
 selected_regions = st.sidebar.multiselect("片区", region_options, default=region_options)
 
-if '运营中心' in df_main.columns:
-    center_options = get_unique_sorted(df_main['运营中心'])
-else:
-    center_options = []
+center_options = get_unique_sorted(df_main['运营中心']) if '运营中心' in df_main.columns else []
 selected_centers = st.sidebar.multiselect("运营中心", center_options, default=center_options)
 
 # ----------------------------- 筛选函数 -----------------------------
 def filter_main(df, date_range, categories, regions, centers):
-    if len(date_range) == 2:
+    if '日期' in df.columns and len(date_range) == 2:
         s, e = date_range
         df = df[(df['日期'].dt.date >= s) & (df['日期'].dt.date <= e)]
     if categories and '品类' in df.columns:
@@ -206,7 +202,7 @@ def filter_main(df, date_range, categories, regions, centers):
     return df
 
 def filter_order(df, date_range, categories, centers):
-    if len(date_range) == 2:
+    if '日期' in df.columns and len(date_range) == 2:
         s, e = date_range
         df = df[(df['日期'].dt.date >= s) & (df['日期'].dt.date <= e)]
     if categories and '品类' in df.columns:
@@ -221,7 +217,6 @@ df_main_filtered = filter_by_brand(df_main_filtered, selected_brands)
 df_order_filtered = filter_order(df_order, date_range, selected_categories, selected_centers)
 df_order_filtered = filter_by_brand(df_order_filtered, selected_brands)
 
-# 显示筛选后行数
 st.sidebar.markdown("---")
 st.sidebar.write(f"筛选后客资数: {len(df_main_filtered)}")
 st.sidebar.write(f"筛选后订单数: {len(df_order_filtered)}")
@@ -240,7 +235,6 @@ col2.metric("有效客资数", f"{valid_leads:,}")
 col3.metric("成交数", f"{total_orders:,}")
 col4.metric("总金额", f"{total_amount:,.0f} 元")
 
-# 如果数据为空，显示提示并停止后续图表
 if total_leads == 0 and total_orders == 0:
     st.warning("当前筛选条件下没有数据，请调整筛选条件或检查数据源。")
     st.stop()
@@ -296,7 +290,6 @@ st.plotly_chart(fig_funnel, use_container_width=True)
 # ----------------------------- 转化率趋势 -----------------------------
 st.header("📈 转化率趋势")
 if not df_main_filtered.empty and '日期' in df_main_filtered.columns:
-    # 按天分组
     daily = df_main_filtered.groupby(df_main_filtered['日期'].dt.date).apply(
         lambda x: pd.Series({
             '总客资': len(x),
@@ -365,6 +358,10 @@ if not df_order_filtered.empty and '市区' in df_order_filtered.columns:
         unique_cities = city_amount.drop_duplicates(subset=['市区'])
         if len(unique_cities) > 100:
             unique_cities = unique_cities.head(100)
+        
+        # 检查是否所有城市都落在默认坐标
+        if (unique_cities['经度'] == DEFAULT_COORD[0]).all() and (unique_cities['纬度'] == DEFAULT_COORD[1]).all():
+            st.warning("所有城市的经纬度均为默认值（北京），请补充实际城市经纬度或检查市区名称是否正确。")
         
         fig_map = px.scatter_mapbox(
             unique_cities,
