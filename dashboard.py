@@ -240,7 +240,7 @@ funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
 fig_funnel = go.Figure(go.Funnel(y=funnel_labels, x=funnel_values))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# ----------------------------- 转化率趋势（四个率，双轴，分段刻度） -----------------------------
+# ----------------------------- 转化率趋势（四个率，双轴，分段刻度：0-100%步长10%，100-360%步长20%） -----------------------------
 st.header("📈 转化率趋势")
 if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     # 按天聚合
@@ -274,16 +274,19 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     daily["跟进率"] = daily["已跟进"] / daily["已分配"].replace(0, pd.NA)
     daily["转化率"] = daily["成交数"] / daily["有效客资"].replace(0, pd.NA)
     
-    # 生成分段刻度：0~1.0 步长0.05，1.0~3.6 步长0.2
+    # 生成分段刻度：0~1.0 步长0.1 (10%)，1.0~3.6 步长0.2 (20%)
     ticks = []
+    # 低区 0 到 1.0
     current = 0.0
     while current <= 1.0 + 1e-9:
         ticks.append(round(current, 6))
-        current += 0.05
+        current += 0.1
+    # 高区从 1.2 到 3.6
     current = 1.2
     while current <= 3.6 + 1e-9:
         ticks.append(round(current, 6))
         current += 0.2
+    # 确保包含 3.6
     if 3.6 not in ticks:
         ticks.append(3.6)
     ticks = sorted(set(ticks))
