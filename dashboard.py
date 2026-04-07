@@ -48,7 +48,6 @@ CITY_COORDS = {
 }
 DEFAULT_COORD = [116.4074, 39.9042]
 
-# ----------------------------- 城市名称清洗与坐标获取 -----------------------------
 def get_city_coord(city_name):
     if not city_name or pd.isna(city_name):
         return DEFAULT_COORD
@@ -63,7 +62,6 @@ def get_city_coord(city_name):
         st.warning(f"未找到城市 '{city_name}' 的坐标，使用北京默认")
     return coord if coord else DEFAULT_COORD
 
-# ----------------------------- 品牌筛选逻辑（修复索引错误） -----------------------------
 def apply_brand_filter(df, selected_brands):
     if not selected_brands:
         return df
@@ -81,7 +79,6 @@ def apply_brand_filter(df, selected_brands):
         cond |= (df["品牌"] == "美的") & (df["品类"] == "空调")
     return df[cond]
 
-# ----------------------------- 数据加载 -----------------------------
 @st.cache_data(ttl=3600)
 def load_data():
     if not os.path.exists("data.zip"):
@@ -108,7 +105,6 @@ def load_data():
         conn.close()
         os.unlink(tmp_path)
 
-    # 日期处理
     if "获取时间" in df_main.columns:
         df_main["日期"] = pd.to_datetime(df_main["获取时间"], errors="coerce")
     elif "日期" in df_main.columns:
@@ -140,19 +136,16 @@ def load_data():
 
     return df_main, df_order
 
-# ----------------------------- 主程序 -----------------------------
 df_main, df_order = load_data()
 if df_main.empty:
     st.error("客资明细表为空，请检查数据源")
     st.stop()
 
-# 调试模式开关
 if "debug_mode" not in st.session_state:
     st.session_state.debug_mode = False
 with st.sidebar:
     st.session_state.debug_mode = st.checkbox("🔧 调试模式", value=False)
 
-# 动态生成筛选选项
 actual_brands = sorted([b for b in df_main["品牌"].dropna().unique() if b and b != "未知"])
 actual_cats = sorted([c for c in df_main["品类"].dropna().unique() if c and c != "未知"])
 actual_centers = sorted([c for c in df_main["运营中心"].dropna().unique() if c and c != "未知"])
@@ -198,7 +191,6 @@ if sel_cat:
 if sel_center:
     df_o = df_o[df_o["运营中心"].isin(sel_center)]
 
-# 调试信息
 if st.session_state.debug_mode:
     with st.sidebar:
         st.markdown("---")
@@ -211,7 +203,6 @@ if st.session_state.debug_mode:
             st.write("品牌唯一值:", df_main["品牌"].unique())
             st.write("品类唯一值:", df_main["品类"].unique())
 
-# ----------------------------- 指标卡片 -----------------------------
 st.title("🏬 天猫新零售数据看板")
 c1, c2, c3, c4 = st.columns(4)
 total_leads = len(df_m)
@@ -226,7 +217,6 @@ c2.metric("有效客资", f"{valid_leads:,}")
 c3.metric("成交单量", f"{order_count:,}")
 c4.metric("总金额（万元）", f"{total_wan:.2f}")
 
-# ----------------------------- 转化漏斗 -----------------------------
 st.header("📉 转化漏斗")
 if "最新跟进状态" in df_m.columns and not df_m.empty:
     assigned = df_m[valid_mask & (df_m["最新跟进状态"] != "未分配")].shape[0]
@@ -240,31 +230,21 @@ funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
 fig_funnel = go.Figure(go.Funnel(y=funnel_labels, x=funnel_values))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# ========================= 转化率趋势（分段映射，压缩100%以上区域） =========================
+# ========================= 转化率趋势（分段映射，压缩100%以上区域，稀疏刻度） =========================
 st.header("📈 转化率趋势")
 
 def map_ratio(r):
-    """将原始比率 r (0~3.6) 映射到新的轴坐标，0-1.0 线性，>1.0 压缩5倍"""
     if r <= 1.0:
         return r
     else:
         return 1.0 + (r - 1.0) * 0.2
 
-def inv_map(y):
-    """逆映射（用于计算刻度位置）"""
-    if y <= 1.0:
-        return y
-    else:
-        return 1.0 + (y - 1.0) / 0.2
-
 if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
-    # 按天聚合
     daily = df_m.groupby(df_m["日期"].dt.date).agg(
         总客资=("品牌", "count"),
         有效客资=("外呼状态", lambda x: x.isin(["高意向", "低意向", "无需外呼"]).sum())
     ).reset_index()
     
-    # 已分配、已跟进（基于有效客资）
     valid_df = df_m[valid_mask]
     if not valid_df.empty and "最新跟进状态" in valid_df.columns:
         daily_assign = valid_df.groupby(valid_df["日期"].dt.date).agg(
@@ -276,56 +256,45 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
         daily["已分配"] = 0
         daily["已跟进"] = 0
     
-    # 成交数
     if not df_o.empty:
         daily_order = df_o.groupby(df_o["日期"].dt.date).size().reset_index(name="成交数")
         daily = daily.merge(daily_order, on="日期", how="left").fillna(0)
     else:
         daily["成交数"] = 0
     
-    # 计算四个率
     daily["有效率"] = daily["有效客资"] / daily["总客资"].replace(0, pd.NA)
     daily["分配率"] = daily["已分配"] / daily["有效客资"].replace(0, pd.NA)
     daily["跟进率"] = daily["已跟进"] / daily["已分配"].replace(0, pd.NA)
     daily["转化率"] = daily["成交数"] / daily["有效客资"].replace(0, pd.NA)
     
-    # 对四个率应用映射
     for col in ["有效率", "分配率", "跟进率", "转化率"]:
         daily[col + "_mapped"] = daily[col].apply(lambda x: map_ratio(x) if pd.notna(x) else None)
     
-    # 生成原始刻度值（百分比标签）
+    # 生成稀疏刻度：0-100%每10%一个，100%-360%每50%一个（含100%和360%）
     raw_ticks = []
-    # 0-1.0 步长0.1
+    # 低区 0.0, 0.1, 0.2, ..., 1.0
     t = 0.0
     while t <= 1.0 + 1e-9:
         raw_ticks.append(round(t, 6))
         t += 0.1
-    # 1.2-3.6 步长0.2
-    t = 1.2
+    # 高区 1.5, 2.0, 2.5, 3.0, 3.5 (不要1.2/1.4等，避免过密)
+    t = 1.5
     while t <= 3.6 + 1e-9:
         raw_ticks.append(round(t, 6))
-        t += 0.2
+        t += 0.5
+    # 确保包含3.6
+    if 3.6 not in raw_ticks:
+        raw_ticks.append(3.6)
     raw_ticks = sorted(set(raw_ticks))
-    # 计算映射后的坐标
     mapped_ticks = [map_ratio(v) for v in raw_ticks]
     tick_labels = [f"{int(v*100)}%" for v in raw_ticks]
     
-    # 创建图形
     fig_trend = go.Figure()
-    fig_trend.add_trace(go.Scatter(
-        x=daily["日期"], y=daily["有效率_mapped"], mode='lines+markers', name='有效率'
-    ))
-    fig_trend.add_trace(go.Scatter(
-        x=daily["日期"], y=daily["分配率_mapped"], mode='lines+markers', name='分配率'
-    ))
-    fig_trend.add_trace(go.Scatter(
-        x=daily["日期"], y=daily["跟进率_mapped"], mode='lines+markers', name='跟进率'
-    ))
-    fig_trend.add_trace(go.Scatter(
-        x=daily["日期"], y=daily["转化率_mapped"], mode='lines+markers', name='转化率'
-    ))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["有效率_mapped"], mode='lines+markers', name='有效率'))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["分配率_mapped"], mode='lines+markers', name='分配率'))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["跟进率_mapped"], mode='lines+markers', name='跟进率'))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["转化率_mapped"], mode='lines+markers', name='转化率'))
     
-    # 设置 y 轴：范围 0 ~ 最大映射值（最大原始3.6映射到1.52）
     y_max_mapped = map_ratio(3.6)
     fig_trend.update_layout(
         title="转化率趋势（有效率、分配率、跟进率、转化率）<br><sub>注：100%以上区域已压缩，正常范围(0-100%)占据更大高度以突出细节</sub>",
@@ -336,7 +305,8 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
             range=[0, y_max_mapped],
             tickvals=mapped_ticks,
             ticktext=tick_labels,
-            tickangle=45   # 避免标签重叠
+            tickangle=45,
+            tickfont=dict(size=10)
         ),
         legend=dict(x=0.01, y=0.99),
         hovermode='x unified'
