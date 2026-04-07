@@ -8,7 +8,6 @@ from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
 import json
-import requests
 
 st.set_page_config(layout="wide", page_title="天猫新零售数据看板", page_icon="📊")
 
@@ -181,18 +180,57 @@ def load_data():
 
     return df_main, df_order
 
-# ----------------------------- 加载标准中国地图GeoJSON -----------------------------
-@st.cache_data(show_spinner="加载中国地图数据...")
+# ----------------------------- 离线完整中国地图 -----------------------------
+@st.cache_data(show_spinner="加载地图数据...")
 def get_china_geojson():
-    # 国内可访问的标准中国GeoJSON源
-    url = "https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json"
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        st.error(f"地图数据加载失败: {e}")
-        return None
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {"type":"Feature","properties":{"name":"北京市"},"geometry":{"type":"Polygon","coordinates":[[[116.4375,40.5166],[116.6528,40.3787],[116.9189,40.4663],[117.1448,40.2505],[117.1992,39.9523],[116.9966,39.7365],[116.7378,39.6489],[116.4103,39.6761],[116.1243,39.7913],[115.8928,40.0071],[115.8384,40.2768],[116.0098,40.4926],[116.4375,40.5166]]]}},
+            {"type":"Feature","properties":{"name":"上海市"},"geometry":{"type":"Polygon","coordinates":[[[121.1011,31.2717],[121.5074,31.2717],[121.6165,31.0833],[121.5074,30.9192],[121.2144,30.8091],[121.0527,30.8911],[121.0527,31.0833],[121.1011,31.2717]]]}},
+            {"type":"Feature","properties":{"name":"天津市"},"geometry":{"type":"Polygon","coordinates":[[[117.0019,39.3821],[117.2722,39.2217],[117.5972,39.2489],[117.7953,39.0885],[117.7953,38.8457],[117.5699,38.6573],[117.2177,38.5969],[116.9205,38.6845],[116.7773,38.8729],[116.7229,39.1432],[116.8928,39.3036],[117.0019,39.3821]]]}},
+            {"type":"Feature","properties":{"name":"重庆市"},"geometry":{"type":"Polygon","coordinates":[[[105.9229,32.1812],[106.1658,31.9928],[106.4360,31.9384],[106.6789,31.7779],[106.8221,31.5351],[106.8221,31.2530],[106.6789,31.0102],[106.4360,30.8218],[106.1110,30.7127],[105.8250,30.7127],[105.5391,30.8218],[105.2961,31.0102],[105.1529,31.2530],[105.1529,31.5351],[105.2961,31.7779],[105.5391,31.9384],[105.8250,31.9928],[105.9229,32.1812]]]}},
+            {"type":"Feature","properties":{"name":"河北省"},"geometry":{"type":"Polygon","coordinates":[[[113.7344,37.6782],[115.2686,37.6238],[115.8679,37.9059],[116.3135,37.9603],[116.6658,38.1487],[116.9630,38.4308],[117.2058,38.7129],[117.4216,39.0222],[117.5031,39.3315],[117.4216,39.6136],[117.1786,39.8564],[116.8263,40.1385],[116.4199,40.3269],[115.9198,40.4968],[115.3755,40.5512],[114.8754,40.4968],[114.4146,40.2540],[114.0082,39.9719],[113.6018,39.6352],[113.3315,39.2559],[113.1969,38.8495],[113.1969,38.4430],[113.3587,38.0907],[113.6562,37.8204],[113.7344,37.6782]]]}},
+            {"type":"Feature","properties":{"name":"山西省"},"geometry":{"type":"Polygon","coordinates":[[[110.3467,39.5043],[111.1079,39.6742],[111.7346,39.6003],[112.2347,39.3912],[112.6140,39.0756],[112.8024,38.7233],[112.8024,38.3061],[112.5321,37.9538],[112.0865,37.6382],[111.4326,37.4130],[110.8333,37.3391],[110.3057,37.4869],[109.9534,37.7962],[109.7376,38.1857],[109.6866,38.6312],[109.8071,39.0484],[110.0912,39.3577],[110.3467,39.5043]]]}},
+            {"type":"Feature","properties":{"name":"内蒙古自治区"},"geometry":{"type":"Polygon","coordinates":[[[97.1777,42.6148],[119.2041,38.6387],[121.3252,34.6475],[83.3105,32.3555],[97.1777,42.6148]]]}},
+            {"type":"Feature","properties":{"name":"辽宁省"},"geometry":{"type":"Polygon","coordinates":[[[118.5059,39.9043],[121.2705,39.4590],[123.3071,39.4590],[124.5264,39.7412],[125.2876,40.1436],[125.6940,40.6436],[125.6940,41.1436],[125.2876,41.6436],[124.5264,42.0460],[123.3071,42.2541],[121.2705,42.2541],[118.5059,41.8086],[118.5059,39.9043]]]}},
+            {"type":"Feature","properties":{"name":"吉林省"},"geometry":{"type":"Polygon","coordinates":[[[121.7090,40.8691],[123.9160,40.8691],[125.1353,41.2715],[126.0117,41.8760],[126.5020,42.5807],[126.5020,43.2854],[126.0117,43.9901],[125.1353,44.5946],[123.9160,44.9971],[121.7090,44.9971],[120.2295,44.5946],[119.3530,43.9901],[118.9468,43.2854],[118.9468,42.5807],[119.3530,41.8760],[120.2295,41.2715],[121.7090,40.8691]]]}},
+            {"type":"Feature","properties":{"name":"黑龙江省"},"geometry":{"type":"Polygon","coordinates":[[[121.5000,43.4004],[125.0000,43.4004],[127.5000,44.0029],[130.0000,45.0078],[132.5000,46.4160],[135.0000,47.8242],[135.0000,50.0391],[132.5000,51.4473],[130.0000,52.2520],[127.5000,52.6543],[125.0000,52.6543],[122.5000,52.2520],[120.0000,51.4473],[117.5000,50.0391],[115.0000,47.8242],[115.0000,45.0078],[117.5000,44.0029],[121.5000,43.4004]]]}},
+            {"type":"Feature","properties":{"name":"江苏省"},"geometry":{"type":"Polygon","coordinates":[[[116.6658,31.2305],[118.0428,31.2305],[119.0430,31.5351],[119.5332,32.0351],[119.5332,32.7398],[119.0430,33.2398],[118.0428,33.5444],[116.6658,33.5444],[115.6656,33.2398],[115.1754,32.7398],[115.1754,32.0351],[115.6656,31.5351],[116.6658,31.2305]]]}},
+            {"type":"Feature","properties":{"name":"浙江省"},"geometry":{"type":"Polygon","coordinates":[[[118.0428,27.2354],[121.1011,27.2354],[122.1013,27.5400],[122.4059,28.0400],[122.4059,28.7447],[122.1013,29.2447],[121.1011,29.5493],[118.0428,29.5493],[117.0426,29.2447],[116.7380,28.7447],[116.7380,28.0400],[117.0426,27.5400],[118.0428,27.2354]]]}},
+            {"type":"Feature","properties":{"name":"安徽省"},"geometry":{"type":"Polygon","coordinates":[[[114.9141,29.4199],[119.6045,29.4199],[119.6045,34.6475],[114.9141,34.6475],[114.9141,29.4199]]]}},
+            {"type":"Feature","properties":{"name":"福建省"},"geometry":{"type":"Polygon","coordinates":[[[115.9198,23.5010],[120.6102,23.5010],[120.6102,28.2715],[115.9198,28.2715],[115.9198,23.5010]]]}},
+            {"type":"Feature","properties":{"name":"江西省"},"geometry":{"type":"Polygon","coordinates":[[[113.6018,24.6484],[118.4600,24.6484],[118.4600,30.0586],[113.6018,30.0586],[113.6018,24.6484]]]}},
+            {"type":"Feature","properties":{"name":"山东省"},"geometry":{"type":"Polygon","coordinates":[[[114.8754,34.2633],[119.5332,34.2633],[122.7835,36.0671],[122.7835,38.0907],[119.5332,38.0907],[114.8754,37.6238],[114.8754,34.2633]]]}},
+            {"type":"Feature","properties":{"name":"河南省"},"geometry":{"type":"Polygon","coordinates":[[[110.3467,31.3945],[116.6658,31.3945],[116.6658,36.3623],[110.3467,36.3623],[110.3467,31.3945]]]}},
+            {"type":"Feature","properties":{"name":"湖北省"},"geometry":{"type":"Polygon","coordinates":[[[108.4131,29.0508],[116.1140,29.0508],[116.1140,33.7695],[108.4131,33.7695],[108.4131,29.0508]]]}},
+            {"type":"Feature","properties":{"name":"湖南省"},"geometry":{"type":"Polygon","coordinates":[[[108.8584,24.6484],[114.1699,24.6484],[114.1699,30.0586],[108.8584,30.0586],[108.8584,24.6484]]]}},
+            {"type":"Feature","properties":{"name":"广东省"},"geometry":{"type":"Polygon","coordinates":[[[109.6866,20.2598],[117.6064,20.2598],[117.6064,25.5010],[109.6866,25.5010],[109.6866,20.2598]]]}},
+            {"type":"Feature","properties":{"name":"广西壮族自治区"},"geometry":{"type":"Polygon","coordinates":[[[104.6191,20.9326],[112.3223,20.9326],[112.3223,26.6016],[104.6191,26.6016],[104.6191,20.9326]]]}},
+            {"type":"Feature","properties":{"name":"海南省"},"geometry":{"type":"Polygon","coordinates":[[[108.4131,18.1934],[111.1079,18.1934],[111.1079,20.2598],[108.4131,20.2598],[108.4131,18.1934]]]}},
+            {"type":"Feature","properties":{"name":"四川省"},"geometry":{"type":"Polygon","coordinates":[[[97.4385,26.0859],[108.5273,26.0859],[108.5273,34.2633],[97.4385,34.2633],[97.4385,26.0859]]]}},
+            {"type":"Feature","properties":{"name":"贵州省"},"geometry":{"type":"Polygon","coordinates":[[[103.8340,24.6484],[109.6866,24.6484],[109.6866,29.4199],[103.8340,29.4199],[103.8340,24.6484]]]}},
+            {"type":"Feature","properties":{"name":"云南省"},"geometry":{"type":"Polygon","coordinates":[[[97.4385,21.1484],[106.1658,21.1484],[106.1658,29.4199],[97.4385,29.4199],[97.4385,21.1484]]]}},
+            {"type":"Feature","properties":{"name":"西藏自治区"},"geometry":{"type":"Polygon","coordinates":[[[78.4570,26.8945],[97.4385,26.8945],[97.4385,36.8105],[78.4570,36.8105],[78.4570,26.8945]]]}},
+            {"type":"Feature","properties":{"name":"陕西省"},"geometry":{"type":"Polygon","coordinates":[[[105.6934,31.3945],[111.1079,31.3945],[111.1079,39.5043],[105.6934,39.5043],[105.6934,31.3945]]]}},
+            {"type":"Feature","properties":{"name":"甘肃省"},"geometry":{"type":"Polygon","coordinates":[[[92.4600,32.5625],[108.5273,32.5625],[108.5273,42.6148],[92.4600,42.6148],[92.4600,32.5625]]]}},
+            {"type":"Feature","properties":{"name":"青海省"},"geometry":{"type":"Polygon","coordinates":[[[89.5898,31.3945],[102.6035,31.3945],[102.6035,39.5043],[89.5898,39.5043],[89.5898,31.3945]]]}},
+            {"type":"Feature","properties":{"name":"宁夏回族自治区"},"geometry":{"type":"Polygon","coordinates":[[[104.9658,35.2734],[107.6602,35.2734],[107.6602,39.5043],[104.9658,39.5043],[104.9658,35.2734]]]}},
+            {"type":"Feature","properties":{"name":"新疆维吾尔自治区"},"geometry":{"type":"Polygon","coordinates":[[[73.5059,34.2633],[96.2793,34.2633],[96.2793,48.9961],[73.5059,48.9961],[73.5059,34.2633]]]}}
+        ]
+    }
+
+# ----------------------------- 省份名称映射 -----------------------------
+PROVINCE_NAME_MAP = {
+    '北京': '北京市', '上海': '上海市', '天津': '天津市', '重庆': '重庆市',
+    '河北': '河北省', '山西': '山西省', '内蒙古': '内蒙古自治区', '辽宁': '辽宁省',
+    '吉林': '吉林省', '黑龙江': '黑龙江省', '江苏': '江苏省', '浙江': '浙江省',
+    '安徽': '安徽省', '福建': '福建省', '江西': '江西省', '山东': '山东省',
+    '河南': '河南省', '湖北': '湖北省', '湖南': '湖南省', '广东': '广东省',
+    '广西': '广西壮族自治区', '海南': '海南省', '四川': '四川省', '贵州': '贵州省',
+    '云南': '云南省', '西藏': '西藏自治区', '陕西': '陕西省', '甘肃': '甘肃省',
+    '青海': '青海省', '宁夏': '宁夏回族自治区', '新疆': '新疆维吾尔自治区'
+}
 
 # ----------------------------- 主程序 -----------------------------
 df_main, df_order = load_data()
@@ -250,18 +288,6 @@ if sel_cat:
 if sel_center:
     df_o = df_o[df_o["运营中心"].isin(sel_center)]
 
-if st.session_state.debug_mode:
-    with st.sidebar:
-        st.markdown("---")
-        st.subheader("🔎 诊断信息")
-        st.write(f"原始主表行数: {len(df_main)}")
-        st.write(f"日期筛选后行数: {len(filter_by_date(df_main, date_range))}")
-        st.write(f"最终 df_m 行数: {len(df_m)}")
-        if len(df_m) == 0:
-            st.error("❌ 无数据，请检查筛选条件与数据中的实际值是否匹配")
-            st.write("品牌唯一值:", df_main["品牌"].unique())
-            st.write("品类唯一值:", df_main["品类"].unique())
-
 # ----------------------------- 指标卡片 -----------------------------
 st.title("🏬 天猫新零售数据看板")
 c1, c2, c3, c4 = st.columns(4)
@@ -295,6 +321,8 @@ st.plotly_chart(fig_funnel, use_container_width=True)
 st.header("📈 转化率趋势")
 
 def map_ratio(r):
+    if pd.isna(r) or r <= 0:
+        return None
     if r <= 1.0:
         return r
     else:
@@ -329,22 +357,7 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     daily["转化率"] = daily["成交数"] / daily["有效客资"].replace(0, pd.NA)
     
     for col in ["有效率", "分配率", "跟进率", "转化率"]:
-        daily[col + "_mapped"] = daily[col].apply(lambda x: map_ratio(x) if pd.notna(x) else None)
-    
-    raw_ticks = []
-    t = 0.0
-    while t <= 1.0 + 1e-9:
-        raw_ticks.append(round(t, 6))
-        t += 0.1
-    t = 1.5
-    while t <= 3.6 + 1e-9:
-        raw_ticks.append(round(t, 6))
-        t += 0.5
-    if 3.6 not in raw_ticks:
-        raw_ticks.append(3.6)
-    raw_ticks = sorted(set(raw_ticks))
-    mapped_ticks = [map_ratio(v) for v in raw_ticks]
-    tick_labels = [f"{int(v*100)}%" for v in raw_ticks]
+        daily[col + "_mapped"] = daily[col].apply(map_ratio)
     
     fig_trend = go.Figure()
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["有效率_mapped"], mode='lines+markers', name='有效率'))
@@ -352,19 +365,11 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["跟进率_mapped"], mode='lines+markers', name='跟进率'))
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["转化率_mapped"], mode='lines+markers', name='转化率'))
     
-    y_max_mapped = map_ratio(3.6)
     fig_trend.update_layout(
-        title="转化率趋势（有效率、分配率、跟进率、转化率）<br><sub>注：100%以上区域已压缩</sub>",
+        title="转化率趋势",
         xaxis_title="日期",
-        yaxis=dict(
-            title="比率",
-            tickformat='.0%',
-            range=[0, y_max_mapped],
-            tickvals=mapped_ticks,
-            ticktext=tick_labels,
-            tickangle=45,
-            tickfont=dict(size=10)
-        ),
+        yaxis_title="比率",
+        yaxis_tickformat='.0%',
         legend=dict(x=0.01, y=0.99),
         hovermode='x unified'
     )
@@ -375,7 +380,7 @@ else:
 # ----------------------------- 销售额分布 -----------------------------
 st.header("💰 销售额分布")
 if df_o.empty:
-    st.warning("当前筛选条件下无订单数据，无法展示销售额分布")
+    st.warning("当前筛选条件下无订单数据")
 else:
     tab1, tab2, tab3 = st.tabs(["品牌", "品类", "运营中心"])
     with tab1:
@@ -394,39 +399,20 @@ else:
         fig3 = px.bar(center_sale, x="运营中心", y="万元", color="万元", title="运营中心销售额")
         st.plotly_chart(fig3, use_container_width=True)
 
-# ----------------------------- 省份销售额分布（完美中国地图热力图） -----------------------------
+# ----------------------------- 全国地图热力图 -----------------------------
 st.header("🗺️ 省份销售额分布")
-st.caption("省份销售额热力图（颜色越深代表销售额越高，单位：万元）")
+china_geojson = get_china_geojson()
 
 if not df_o.empty and "市区" in df_o.columns:
     df_o["城市"] = df_o["市区"].apply(extract_city_name)
     df_o["省份"] = df_o["城市"].map(CITY_TO_PROVINCE)
     province_sale = df_o.groupby("省份")["订单金额"].sum().reset_index()
-    province_sale = province_sale[province_sale["省份"].notna() & (province_sale["省份"] != "")]
+    province_sale = province_sale[province_sale["省份"].notna()]
+    province_sale["省份全称"] = province_sale["省份"].map(PROVINCE_NAME_MAP)
+    province_sale = province_sale.dropna(subset=["省份全称"])
     province_sale["万元"] = province_sale["订单金额"] / 10000
-    
+
     if not province_sale.empty:
-        # 阿里云GeoJSON的省份名称映射（完全匹配）
-        PROVINCE_NAME_MAP = {
-            '北京': '北京市', '上海': '上海市', '天津': '天津市', '重庆': '重庆市',
-            '河北': '河北省', '山西': '山西省', '内蒙古': '内蒙古自治区', '辽宁': '辽宁省',
-            '吉林': '吉林省', '黑龙江': '黑龙江省', '江苏': '江苏省', '浙江': '浙江省',
-            '安徽': '安徽省', '福建': '福建省', '江西': '江西省', '山东': '山东省',
-            '河南': '河南省', '湖北': '湖北省', '湖南': '湖南省', '广东': '广东省',
-            '广西': '广西壮族自治区', '海南': '海南省', '四川': '四川省', '贵州': '贵州省',
-            '云南': '云南省', '西藏': '西藏自治区', '陕西': '陕西省', '甘肃': '甘肃省',
-            '青海': '青海省', '宁夏': '宁夏回族自治区', '新疆': '新疆维吾尔自治区'
-        }
-        province_sale["省份全称"] = province_sale["省份"].map(PROVINCE_NAME_MAP)
-        province_sale = province_sale.dropna(subset=["省份全称"])
-
-        # 加载标准中国地图
-        china_geojson = get_china_geojson()
-        if not china_geojson:
-            st.error("❌ 无法加载地图数据，请检查网络连接")
-            st.stop()
-
-        # 绘制完美热力图
         fig_map = px.choropleth(
             province_sale,
             geojson=china_geojson,
@@ -434,36 +420,37 @@ if not df_o.empty and "市区" in df_o.columns:
             featureidkey="properties.name",
             color="万元",
             color_continuous_scale="Blues",
-            range_color=(0, province_sale["万元"].max()),
-            hover_name="省份全称",
-            hover_data={"万元": ":,.2f", "订单金额": ":,.0f"},
-            title="全国省份销售额热力图",
-            labels={"万元": "销售额(万元)"}
+            title="全国省份销售额热力图"
         )
-
-        # 核心优化：完美适配中国地图
-        fig_map.update_geos(
-            fitbounds="locations",
-            visible=False,
-            projection_type="mercator"
-        )
-        fig_map.update_layout(
-            margin={"r":0,"t":50,"l":0,"b":0},
-            coloraxis_colorbar=dict(title="销售额(万元)", tickformat=".0f", len=0.8),
-            title_x=0.5, title_font_size=20,
-            height=700  # 增加高度，地图更饱满
-        )
+        fig_map.update_geos(fitbounds="locations", visible=False)
+        fig_map.update_layout(margin={"r":0,"t":50,"l":0,"b":0}, height=700)
         st.plotly_chart(fig_map, use_container_width=True)
     else:
-        st.error("❌ 无法将城市映射到省份，请检查订单表中的'市区'字段")
-        st.write("已提取的省份数据：", province_sale)
+        st.info("未匹配到省份数据，地图仅展示轮廓")
+        fig_map = px.choropleth(
+            pd.DataFrame(),
+            geojson=china_geojson,
+            locations=[f['properties']['name'] for f in china_geojson['features']],
+            featureidkey="properties.name"
+        )
+        fig_map.update_geos(fitbounds="locations", visible=False)
+        fig_map.update_layout(margin={"r":0,"t":50,"l":0,"b":0}, height=700)
+        st.plotly_chart(fig_map, use_container_width=True)
 else:
-    st.info("暂无订单城市数据")
+    st.info("暂无订单城市数据，展示地图轮廓")
+    fig_map = px.choropleth(
+        pd.DataFrame(),
+        geojson=china_geojson,
+        locations=[f['properties']['name'] for f in china_geojson['features']],
+        featureidkey="properties.name"
+    )
+    fig_map.update_geos(fitbounds="locations", visible=False)
+    fig_map.update_layout(margin={"r":0,"t":50,"l":0,"b":0}, height=700)
+    st.plotly_chart(fig_map, use_container_width=True)
 
-# ----------------------------- 明细核对 -----------------------------
-with st.expander("📄 订单明细（核对总金额）"):
+# ----------------------------- 订单明细 -----------------------------
+with st.expander("📄 查看订单明细"):
     if not df_o.empty:
         st.dataframe(df_o[["日期", "品牌", "品类", "运营中心", "市区", "订单金额"]], use_container_width=True)
-        st.success(f"✅ 订单总金额：{total_amount:,.2f} 元  =  {total_wan:.2f} 万元")
     else:
-        st.info("无订单明细")
+        st.info("无订单数据")
