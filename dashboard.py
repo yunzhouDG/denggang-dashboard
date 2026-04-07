@@ -4,18 +4,15 @@ import sqlite3
 import zipfile
 import tempfile
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
 
 st.set_page_config(layout="wide", page_title="天猫新零售数据看板", page_icon="📊")
 
-# ----------------------------- 全国城市坐标（完整版，修复直辖市错位） -----------------------------
+# ----------------------------- 全国城市坐标（完整版） -----------------------------
 CITY_COORDS = {
-    '北京': [116.4074, 39.9042],
-    '上海': [121.4737, 31.2304],
-    '天津': [117.1902, 39.1256],
-    '重庆': [106.5044, 29.5582],
+    '北京': [116.4074, 39.9042], '上海': [121.4737, 31.2304], '天津': [117.1902, 39.1256], '重庆': [106.5044, 29.5582],
     '石家庄': [114.5149, 38.0428], '唐山': [118.1827, 39.6307], '秦皇岛': [119.5219, 39.9307], '邯郸': [114.5261, 36.6052],
     '邢台': [114.5093, 37.0671], '保定': [115.4624, 38.8735], '张家口': [114.8722, 40.8286], '承德': [117.9327, 40.9501],
     '沧州': [116.8328, 38.3141], '廊坊': [116.6821, 39.1327], '衡水': [115.7230, 37.7401],
@@ -51,25 +48,61 @@ CITY_COORDS = {
 }
 DEFAULT_COORD = [116.4074, 39.9042]
 
-# ----------------------------- 城市名称清洗（修复直辖市） -----------------------------
+# ----------------------------- 城市名称清洗与坐标获取 -----------------------------
 def get_city_coord(city_name):
     if not city_name or pd.isna(city_name):
         return DEFAULT_COORD
     city_str = str(city_name).strip()
-    for s in ["市", "区", "县", "省", "自治区", "特别行政区"]:
-        city_str = city_str.replace(s, "")
+    # 去除常见后缀
+    for suffix in ["市", "区", "县", "省", "自治区", "特别行政区"]:
+        city_str = city_str.replace(suffix, "")
     city_str = city_str.strip()
+    # 直辖市直接映射
     direct_map = {"北京": "北京", "上海": "上海", "天津": "天津", "重庆": "重庆"}
     city_str = direct_map.get(city_str, city_str)
-    return CITY_COORDS.get(city_str, DEFAULT_COORD)
+    coord = CITY_COORDS.get(city_str)
+    if coord is None:
+        st.warning(f"未找到城市 '{city_name}' 的坐标，将使用北京默认坐标")
+        return DEFAULT_COORD
+    return coord
+
+# ----------------------------- 品牌筛选逻辑（简化但支持虚拟项） -----------------------------
+def apply_brand_filter(df, selected_brands):
+    """
+    支持普通品牌（美的、东芝、小天鹅、COLMO）以及虚拟汇总项：
+    - 洗衣机汇总 -> 小天鹅 或 (美的 且 品类为洗衣机)
+    - 美的厨热 -> 美的 且 品类为厨热
+    - 美的冰箱 -> 美的 且 品类为冰箱
+    - 美的空调 -> 美的 且 品类为空调
+    """
+    if not selected_brands:
+        return df
+    # 分离普通品牌和虚拟条件
+    normal_brands = [b for b in selected_brands if b not in ["洗衣机汇总", "美的厨热", "美的冰箱", "美的空调"]]
+    # 构建布尔条件
+    cond = pd.Series([False] * len(df))
+    if normal_brands:
+        cond |= df["品牌"].isin(normal_brands)
+    if "洗衣机汇总" in selected_brands:
+        cond |= (df["品牌"] == "小天鹅") | ((df["品牌"] == "美的") & (df["品类"] == "洗衣机"))
+    if "美的厨热" in selected_brands:
+        cond |= (df["品牌"] == "美的") & (df["品类"] == "厨热")
+    if "美的冰箱" in selected_brands:
+        cond |= (df["品牌"] == "美的") & (df["品类"] == "冰箱")
+    if "美的空调" in selected_brands:
+        cond |= (df["品牌"] == "美的") & (df["品类"] == "空调")
+    return df[cond]
 
 # ----------------------------- 数据加载 -----------------------------
 @st.cache_data(ttl=3600)
 def load_data():
+    if not os.path.exists("data.zip"):
+        st.error("❌ 未找到 data.zip 文件，请将数据文件放在应用同目录下")
+        st.stop()
     with zipfile.ZipFile("data.zip", "r") as zf:
         db_files = [f for f in zf.namelist() if f.endswith(".db")]
         if not db_files:
-            st.error("未找到.db文件")
+            st.error("❌ 压缩包中未找到 .db 文件")
             st.stop()
         with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp:
             with zf.open(db_files[0]) as f:
@@ -77,101 +110,109 @@ def load_data():
             tmp_path = tmp.name
 
     conn = sqlite3.connect(tmp_path)
-    df_main = pd.read_sql("SELECT * FROM 客资明细表", conn)
-    df_order = pd.read_sql("SELECT * FROM 订单表", conn)
-    conn.close()
-    os.unlink(tmp_path)
+    try:
+        df_main = pd.read_sql("SELECT * FROM 客资明细表", conn)
+        df_order = pd.read_sql("SELECT * FROM 订单表", conn)
+    except Exception as e:
+        st.error(f"数据库读取失败: {e}")
+        st.stop()
+    finally:
+        conn.close()
+        os.unlink(tmp_path)
 
     # 日期处理
     if "获取时间" in df_main.columns:
         df_main["日期"] = pd.to_datetime(df_main["获取时间"], errors="coerce")
+    else:
+        df_main["日期"] = pd.NaT
     if "日期" in df_order.columns:
         df_order["日期"] = pd.to_datetime(df_order["日期"], errors="coerce")
+    else:
+        df_order["日期"] = pd.NaT
 
-    # 金额清洗（保证总金额精准）
-    df_order["订单金额"] = pd.to_numeric(df_order["订单金额"], errors="coerce").fillna(0)
+    # 金额清洗
+    if "订单金额" in df_order.columns:
+        df_order["订单金额"] = pd.to_numeric(df_order["订单金额"], errors="coerce").fillna(0)
+    else:
+        df_order["订单金额"] = 0.0
 
-    # 统一字段
+    # 统一字段（使用 get 避免 KeyError）
     for df in [df_main, df_order]:
         df["品牌"] = df.get("品牌", df.get("意向品牌", "未知")).fillna("未知")
         df["品类"] = df.get("品类", "未知").fillna("未知")
         df["运营中心"] = df.get("运营中心", df.get("运中", "未知")).fillna("未知")
         df["片区"] = df.get("片区", "未知").fillna("未知")
-
-    df_main["外呼状态"] = df_main.get("外呼状态", "")
-    df_main["最新跟进状态"] = df_main.get("最新跟进状态", "")
-    df_order["市区"] = df_order.get("市区", "")
+    if "外呼状态" not in df_main.columns:
+        df_main["外呼状态"] = ""
+    if "最新跟进状态" not in df_main.columns:
+        df_main["最新跟进状态"] = ""
+    if "市区" not in df_order.columns:
+        df_order["市区"] = ""
 
     return df_main, df_order
 
+# 加载数据
 df_main, df_order = load_data()
 
-# ----------------------------- 筛选 -----------------------------
+# 如果主表为空则提示退出
+if df_main.empty:
+    st.error("客资明细表为空，请检查数据源")
+    st.stop()
+
+# ----------------------------- 侧边栏筛选 -----------------------------
 st.sidebar.header("🔍 筛选条件")
-min_date = df_main["日期"].min().date() if "日期" in df_main and not df_main["日期"].isna().all() else datetime.today().date()
-max_date = df_main["日期"].max().date() if "日期" in df_main and not df_main["日期"].isna().all() else datetime.today().date()
+
+# 日期范围
+min_date = df_main["日期"].min().date() if not df_main["日期"].isna().all() else datetime.today().date()
+max_date = df_main["日期"].max().date() if not df_main["日期"].isna().all() else datetime.today().date()
 date_range = st.sidebar.date_input("日期范围", [min_date, max_date])
 
-brand_list = ["美的", "东芝", "小天鹅", "COLMO", "美的厨热", "美的冰箱", "美的空调", "洗衣机汇总"]
-cat_list = sorted([x for x in df_main["品类"].dropna().unique() if x])
-center_list = sorted([x for x in df_main["运营中心"].dropna().unique() if x])
-area_list = sorted([x for x in df_main["片区"].dropna().unique() if x])
+# 下拉选项
+brand_options = ["美的", "东芝", "小天鹅", "COLMO", "美的厨热", "美的冰箱", "美的空调", "洗衣机汇总"]
+cat_options = sorted([x for x in df_main["品类"].dropna().unique() if x and x != "未知"])
+center_options = sorted([x for x in df_main["运营中心"].dropna().unique() if x and x != "未知"])
+area_options = sorted([x for x in df_main["片区"].dropna().unique() if x and x != "未知"])
 
 col1_s, col2_s = st.sidebar.columns(2)
 with col1_s:
-    sel_brand = st.multiselect("品牌", brand_list, default=brand_list)
-    sel_cat = st.multiselect("品类", cat_list, default=cat_list)
+    sel_brand = st.multiselect("品牌", brand_options, default=brand_options)
+    sel_cat = st.multiselect("品类", cat_options, default=cat_options)
 with col2_s:
-    sel_area = st.multiselect("片区", area_list, default=area_list)
-    sel_center = st.multiselect("运营中心", center_list, default=center_list)
+    sel_area = st.multiselect("片区", area_options, default=area_options)
+    sel_center = st.multiselect("运营中心", center_options, default=center_options)
 
-# ----------------------------- 品牌过滤逻辑 -----------------------------
-def brand_filter(df, brands):
-    if not brands:
-        return df
-    res = []
-    for _, row in df.iterrows():
-        b = row["品牌"]
-        c = row["品类"]
-        ok = False
-        for s in brands:
-            if s == "美的" and b == "美的": ok = True
-            elif s == "东芝" and b == "东芝": ok = True
-            elif s == "小天鹅" and b == "小天鹅": ok = True
-            elif s == "COLMO" and b == "COLMO": ok = True
-            elif s == "美的厨热" and b == "美的" and c == "厨热": ok = True
-            elif s == "美的冰箱" and b == "美的" and c == "冰箱": ok = True
-            elif s == "美的空调" and b == "美的" and c == "空调": ok = True
-            elif s == "洗衣机汇总" and (b == "小天鹅" or (b == "美的" and c == "洗衣机")): ok = True
-        if ok:
-            res.append(row)
-    return pd.DataFrame(res)
-
-# 统一过滤
-def df_filter(df, date_range):
-    if "日期" not in df.columns:
+# ----------------------------- 应用筛选 -----------------------------
+def filter_by_date(df, date_range):
+    if "日期" not in df.columns or df["日期"].isna().all():
         return df
     d_start, d_end = date_range
     return df[(df["日期"].dt.date >= d_start) & (df["日期"].dt.date <= d_end)]
 
-df_m = df_filter(df_main, date_range)
-df_m = brand_filter(df_m, sel_brand)
-df_m = df_m[df_m["品类"].isin(sel_cat)]
-df_m = df_m[df_m["运营中心"].isin(sel_center)]
-df_m = df_m[df_m["片区"].isin(sel_area)]
+df_m = filter_by_date(df_main, date_range)
+df_m = apply_brand_filter(df_m, sel_brand)
+if sel_cat:
+    df_m = df_m[df_m["品类"].isin(sel_cat)]
+if sel_center:
+    df_m = df_m[df_m["运营中心"].isin(sel_center)]
+if sel_area:
+    df_m = df_m[df_m["片区"].isin(sel_area)]
 
-df_o = df_filter(df_order, date_range)
-df_o = brand_filter(df_o, sel_brand)
-df_o = df_o[df_o["品类"].isin(sel_cat)]
-df_o = df_o[df_o["运营中心"].isin(sel_center)]
+df_o = filter_by_date(df_order, date_range)
+df_o = apply_brand_filter(df_o, sel_brand)
+if sel_cat:
+    df_o = df_o[df_o["品类"].isin(sel_cat)]
+if sel_center:
+    df_o = df_o[df_o["运营中心"].isin(sel_center)]
+# 订单表没有片区字段，不做片区筛选
 
 # ----------------------------- 指标卡片 -----------------------------
 st.title("🏬 天猫新零售数据看板")
 c1, c2, c3, c4 = st.columns(4)
 total_leads = len(df_m)
-valid_leads = len(df_m[df_m["外呼状态"].isin(["高意向", "低意向", "无需外呼"])])
+valid_mask = df_m["外呼状态"].isin(["高意向", "低意向", "无需外呼"])
+valid_leads = valid_mask.sum()
 order_count = len(df_o)
-total_amount = df_o["订单金额"].sum()
+total_amount = df_o["订单金额"].sum() if not df_o.empty else 0.0
 total_wan = total_amount / 10000
 
 c1.metric("总客资", f"{total_leads:,}")
@@ -179,71 +220,92 @@ c2.metric("有效客资", f"{valid_leads:,}")
 c3.metric("成交单量", f"{order_count:,}")
 c4.metric("总金额（万元）", f"{total_wan:.2f}")
 
-# ----------------------------- 漏斗图 -----------------------------
+# ----------------------------- 转化漏斗 -----------------------------
 st.header("📉 转化漏斗")
-funnel_labels = ["总客资", "有效客资", "已分配", "已跟进", "成交"]
-funnel_values = [
-    len(df_m),
-    valid_leads,
-    len(df_m[(df_m["外呼状态"].isin(["高意向", "低意向", "无需外呼"])) & (df_m["最新跟进状态"] != "未分配")]) if "最新跟进状态" in df_m else 0,
-    len(df_m[(df_m["外呼状态"].isin(["高意向", "低意向", "无需外呼"])) & (~df_m["最新跟进状态"].isin(["未分配", "待查看", "待联系"]))]) if "最新跟进状态" in df_m else 0,
-    len(df_o)
-]
-st.plotly_chart(go.Figure(go.Funnel(y=funnel_labels, x=funnel_values)), use_container_width=True)
+# 已分配：有效客资中最新跟进状态不是“未分配”
+if "最新跟进状态" in df_m.columns and not df_m.empty:
+    assigned = df_m[valid_mask & (df_m["最新跟进状态"] != "未分配")].shape[0]
+    # 已跟进：有效客资中最新跟进状态不在“未分配、待查看、待联系”中（即已联系或更深）
+    followed = df_m[valid_mask & (~df_m["最新跟进状态"].isin(["未分配", "待查看", "待联系"]))].shape[0]
+else:
+    assigned = 0
+    followed = 0
 
-# ----------------------------- 趋势图 -----------------------------
+funnel_labels = ["总客资", "有效客资", "已分配", "已跟进", "成交"]
+funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
+fig_funnel = go.Figure(go.Funnel(y=funnel_labels, x=funnel_values))
+st.plotly_chart(fig_funnel, use_container_width=True)
+
+# ----------------------------- 转化率趋势 -----------------------------
 st.header("📈 转化率趋势")
-if not df_m.empty and "日期" in df_m:
+if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     daily = df_m.groupby(df_m["日期"].dt.date).agg(
-        总客资=("客户ID", "count"),
+        总客资=("品牌", "count"),
         有效客资=("外呼状态", lambda x: x.isin(["高意向", "低意向", "无需外呼"]).sum())
     ).reset_index()
-    daily_order = df_o.groupby(df_o["日期"].dt.date).size().reset_index(name="成交数")
-    daily = daily.merge(daily_order, on="日期", how="left").fillna(0)
+    if not df_o.empty:
+        daily_order = df_o.groupby(df_o["日期"].dt.date).size().reset_index(name="成交数")
+        daily = daily.merge(daily_order, on="日期", how="left").fillna(0)
+    else:
+        daily["成交数"] = 0
     daily["成交率"] = daily["成交数"] / daily["有效客资"].replace(0, pd.NA)
-    fig = px.line(daily, x="日期", y=["有效客资", "成交数", "成交率"], markers=True)
-    st.plotly_chart(fig, use_container_width=True)
+    fig_trend = px.line(daily, x="日期", y=["有效客资", "成交数", "成交率"], markers=True,
+                        title="有效客资、成交数与成交率趋势")
+    st.plotly_chart(fig_trend, use_container_width=True)
+else:
+    st.info("无日期数据，无法绘制趋势图")
 
-# ----------------------------- 销售额分布（热力图/分布图） -----------------------------
+# ----------------------------- 销售额分布 -----------------------------
 st.header("💰 销售额分布")
-tab1, tab2, tab3 = st.tabs(["品牌", "品类", "运营中心"])
-with tab1:
-    if not df_o.empty:
-        top_brand = df_o.groupby("品牌")["订单金额"].sum().sort_values(ascending=False).head(10).reset_index()
-        top_brand["万元"] = top_brand["订单金额"] / 10000
-        st.plotly_chart(px.bar(top_brand, x="品牌", y="万元", color="万元"), use_container_width=True)
-with tab2:
-    if not df_o.empty:
+if df_o.empty:
+    st.warning("当前筛选条件下无订单数据，无法展示销售额分布")
+else:
+    tab1, tab2, tab3 = st.tabs(["品牌", "品类", "运营中心"])
+    with tab1:
+        brand_sale = df_o.groupby("品牌")["订单金额"].sum().sort_values(ascending=False).head(10).reset_index()
+        brand_sale["万元"] = brand_sale["订单金额"] / 10000
+        fig1 = px.bar(brand_sale, x="品牌", y="万元", color="万元", title="品牌销售额 Top10")
+        st.plotly_chart(fig1, use_container_width=True)
+    with tab2:
         cat_sale = df_o.groupby("品类")["订单金额"].sum().reset_index()
         cat_sale["万元"] = cat_sale["订单金额"] / 10000
-        st.plotly_chart(px.pie(cat_sale, names="品类", values="万元"), use_container_width=True)
-with tab3:
-    if not df_o.empty:
+        fig2 = px.pie(cat_sale, names="品类", values="万元", title="品类销售额占比")
+        st.plotly_chart(fig2, use_container_width=True)
+    with tab3:
         center_sale = df_o.groupby("运营中心")["订单金额"].sum().reset_index()
         center_sale["万元"] = center_sale["订单金额"] / 10000
-        st.plotly_chart(px.bar(center_sale, x="运营中心", y="万元", color="万元"), use_container_width=True)
+        fig3 = px.bar(center_sale, x="运营中心", y="万元", color="万元", title="运营中心销售额")
+        st.plotly_chart(fig3, use_container_width=True)
 
-# ----------------------------- 地图热力图 -----------------------------
+# ----------------------------- 城市销售热力图 -----------------------------
 st.header("🗺️ 城市销售热力图")
 if not df_o.empty and "市区" in df_o.columns:
     city_sale = df_o.groupby("市区").agg(订单金额=("订单金额", "sum")).reset_index()
     city_sale = city_sale[city_sale["市区"] != ""]
-    coords = city_sale["市区"].apply(get_city_coord)
-    city_sale[["lon", "lat"]] = pd.DataFrame(coords.tolist(), index=city_sale.index)
-    city_sale["万元"] = city_sale["订单金额"] / 10000
-    fig_map = px.scatter_mapbox(
-        city_sale,
-        lat="lat", lon="lon",
-        size="万元", color="万元",
-        hover_name="市区",
-        mapbox_style="carto-positron",
-        zoom=4
-    )
-    st.plotly_chart(fig_map, use_container_width=True)
+    if not city_sale.empty:
+        coords = city_sale["市区"].apply(get_city_coord)
+        city_sale[["lon", "lat"]] = pd.DataFrame(coords.tolist(), index=city_sale.index)
+        city_sale["万元"] = city_sale["订单金额"] / 10000
+        fig_map = px.scatter_mapbox(
+            city_sale,
+            lat="lat", lon="lon",
+            size="万元", color="万元",
+            hover_name="市区", hover_data={"万元": ":.2f"},
+            mapbox_style="carto-positron",
+            zoom=4,
+            title="城市销售额热力分布（气泡大小代表销售额）"
+        )
+        fig_map.update_layout(mapbox=dict(center=dict(lat=35, lon=105)), margin=dict(l=0, r=0, t=30, b=0))
+        st.plotly_chart(fig_map, use_container_width=True)
+    else:
+        st.info("订单表中无有效的城市信息")
 else:
     st.info("暂无城市销售数据")
 
 # ----------------------------- 明细核对 -----------------------------
 with st.expander("📄 订单明细（核对总金额）"):
-    st.dataframe(df_o[["日期", "品牌", "品类", "运营中心", "市区", "订单金额"]], use_container_width=True)
-    st.success(f"✅ 总金额（元）：{total_amount:.2f}  |  万元：{total_wan:.2f}")
+    if not df_o.empty:
+        st.dataframe(df_o[["日期", "品牌", "品类", "运营中心", "市区", "订单金额"]], use_container_width=True)
+        st.success(f"✅ 订单总金额：{total_amount:,.2f} 元  =  {total_wan:.2f} 万元")
+    else:
+        st.info("无订单明细")
