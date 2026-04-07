@@ -240,7 +240,28 @@ funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
 fig_funnel = go.Figure(go.Funnel(y=funnel_labels, x=funnel_values))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# ----------------------------- 转化率趋势（四个率，双轴不同刻度，跟进率 = 已跟进/已分配） -----------------------------
+# ----------------------------- 自定义分段刻度函数 -----------------------------
+def get_segmented_ticks(max_value=3.5, step_low=0.05, step_high=0.20, threshold=1.0):
+    """
+    生成分段刻度值列表：0 到 threshold 步长为 step_low，threshold 到 max_value 步长为 step_high。
+    包含 threshold 点，且 max_value 向上取整到 step_high 的整数倍。
+    """
+    ticks = []
+    # 低区 0 到 threshold
+    current = 0.0
+    while current <= threshold + 1e-9:
+        ticks.append(round(current, 6))
+        current += step_low
+    # 高区从 threshold + step_high 开始，直到 max_value
+    current = threshold + step_high
+    while current <= max_value + 1e-9:
+        ticks.append(round(current, 6))
+        current += step_high
+    # 去重并排序（由于浮点误差，使用 set 后排序）
+    ticks = sorted(set(ticks))
+    return ticks
+
+# ----------------------------- 转化率趋势（四个率，双轴，分段刻度） -----------------------------
 st.header("📈 转化率趋势")
 if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     # 按天聚合总客资、有效客资
@@ -275,7 +296,20 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     daily["跟进率"] = daily["已跟进"] / daily["已分配"].replace(0, pd.NA)
     daily["转化率"] = daily["成交数"] / daily["有效客资"].replace(0, pd.NA)
     
-    # 绘制双轴图：左轴有效率/分配率/跟进率(0~1, 刻度1%)，右轴转化率(0~1, 刻度50%)
+    # 确定左轴和右轴的最大值（不超过3.5，即350%）
+    max_left = max(daily["有效率"].max(), daily["分配率"].max(), daily["跟进率"].max())
+    max_right = daily["转化率"].max()
+    max_left = min(max_left, 3.5) if not pd.isna(max_left) else 1.0
+    max_right = min(max_right, 3.5) if not pd.isna(max_right) else 1.0
+    # 如果最大值小于1，则设置为1以保证刻度完整
+    max_left = max(max_left, 1.0)
+    max_right = max(max_right, 1.0)
+    
+    # 生成分段刻度
+    left_ticks = get_segmented_ticks(max_value=max_left, step_low=0.05, step_high=0.20, threshold=1.0)
+    right_ticks = get_segmented_ticks(max_value=max_right, step_low=0.05, step_high=0.20, threshold=1.0)
+    
+    # 绘制双轴图
     fig_trend = go.Figure()
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["有效率"], mode='lines+markers', name='有效率', yaxis='y1'))
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["分配率"], mode='lines+markers', name='分配率', yaxis='y1'))
@@ -285,8 +319,23 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     fig_trend.update_layout(
         title="转化率趋势（有效率、分配率、跟进率、转化率）",
         xaxis_title="日期",
-        yaxis=dict(title="比率", side="left", tickformat='.0%', range=[0,1], dtick=0.01),
-        yaxis2=dict(title="转化率", overlaying='y', side="right", tickformat='.0%', range=[0,1], dtick=0.5),
+        yaxis=dict(
+            title="比率",
+            side="left",
+            tickformat='.0%',
+            range=[0, max_left],
+            tickvals=left_ticks,
+            ticktext=[f"{int(v*100)}%" for v in left_ticks]
+        ),
+        yaxis2=dict(
+            title="转化率",
+            overlaying='y',
+            side="right",
+            tickformat='.0%',
+            range=[0, max_right],
+            tickvals=right_ticks,
+            ticktext=[f"{int(v*100)}%" for v in right_ticks]
+        ),
         legend=dict(x=0.01, y=0.99)
     )
     st.plotly_chart(fig_trend, use_container_width=True)
