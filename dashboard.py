@@ -59,25 +59,14 @@ def get_city_coord(city_name):
     direct_map = {"北京": "北京", "上海": "上海", "天津": "天津", "重庆": "重庆"}
     city_str = direct_map.get(city_str, city_str)
     coord = CITY_COORDS.get(city_str)
-    if coord is None:
-        # 只在调试模式输出警告，避免刷屏
-        if st.session_state.get("debug_mode", False):
-            st.warning(f"未找到城市 '{city_name}' 的坐标，使用北京默认")
-        return DEFAULT_COORD
-    return coord
+    if coord is None and st.session_state.get("debug_mode", False):
+        st.warning(f"未找到城市 '{city_name}' 的坐标，使用北京默认")
+    return coord if coord else DEFAULT_COORD
 
 # ----------------------------- 品牌筛选逻辑（修复索引错误） -----------------------------
 def apply_brand_filter(df, selected_brands):
-    """
-    支持普通品牌以及虚拟汇总项：
-    - 洗衣机汇总 -> 小天鹅 或 (美的 且 品类为洗衣机)
-    - 美的厨热 -> 美的 且 品类为厨热
-    - 美的冰箱 -> 美的 且 品类为冰箱
-    - 美的空调 -> 美的 且 品类为空调
-    """
     if not selected_brands:
         return df
-    # 使用 df 的索引创建初始条件 Series，避免索引不匹配
     cond = pd.Series(False, index=df.index)
     normal_brands = [b for b in selected_brands if b not in ["洗衣机汇总", "美的厨热", "美的冰箱", "美的空调"]]
     if normal_brands:
@@ -119,7 +108,7 @@ def load_data():
         conn.close()
         os.unlink(tmp_path)
 
-    # 日期处理：优先使用“获取时间”，若无则尝试“日期”
+    # 日期处理
     if "获取时间" in df_main.columns:
         df_main["日期"] = pd.to_datetime(df_main["获取时间"], errors="coerce")
     elif "日期" in df_main.columns:
@@ -132,13 +121,11 @@ def load_data():
     else:
         df_order["日期"] = pd.NaT
 
-    # 金额清洗
     if "订单金额" in df_order.columns:
         df_order["订单金额"] = pd.to_numeric(df_order["订单金额"], errors="coerce").fillna(0)
     else:
         df_order["订单金额"] = 0.0
 
-    # 统一字段（缺失则填充默认值）
     for df in [df_main, df_order]:
         df["品牌"] = df.get("品牌", df.get("意向品牌", "未知")).fillna("未知")
         df["品类"] = df.get("品类", "未知").fillna("未知")
@@ -155,34 +142,24 @@ def load_data():
 
 # ----------------------------- 主程序 -----------------------------
 df_main, df_order = load_data()
-
 if df_main.empty:
     st.error("客资明细表为空，请检查数据源")
     st.stop()
 
-# 侧边栏调试模式开关（默认关闭，需要时可打开）
+# 调试模式开关
 if "debug_mode" not in st.session_state:
     st.session_state.debug_mode = False
 with st.sidebar:
-    st.session_state.debug_mode = st.checkbox("🔧 调试模式（显示详细诊断）", value=False)
+    st.session_state.debug_mode = st.checkbox("🔧 调试模式", value=False)
 
-# ----------------------------- 动态生成筛选选项（避免空数据） -----------------------------
-# 从数据中提取实际存在的值（过滤掉“未知”和空值）
-actual_brands = sorted(df_main["品牌"].dropna().unique())
-actual_brands = [b for b in actual_brands if b and b != "未知"]
-actual_cats = sorted(df_main["品类"].dropna().unique())
-actual_cats = [c for c in actual_cats if c and c != "未知"]
-actual_centers = sorted(df_main["运营中心"].dropna().unique())
-actual_centers = [c for c in actual_centers if c and c != "未知"]
-actual_areas = sorted(df_main["片区"].dropna().unique())
-actual_areas = [a for a in actual_areas if a and a != "未知"]
-
-# 品牌选项：实际品牌 + 虚拟汇总项
+# 动态生成筛选选项
+actual_brands = sorted([b for b in df_main["品牌"].dropna().unique() if b and b != "未知"])
+actual_cats = sorted([c for c in df_main["品类"].dropna().unique() if c and c != "未知"])
+actual_centers = sorted([c for c in df_main["运营中心"].dropna().unique() if c and c != "未知"])
+actual_areas = sorted([a for a in df_main["片区"].dropna().unique() if a and a != "未知"])
 brand_options = actual_brands + ["洗衣机汇总", "美的厨热", "美的冰箱", "美的空调"]
 
 st.sidebar.header("🔍 筛选条件")
-
-# 日期范围（若日期全为空则使用今天）
 if not df_main["日期"].isna().all():
     min_date = df_main["日期"].min().date()
     max_date = df_main["日期"].max().date()
@@ -199,7 +176,6 @@ with col2_s:
     sel_area = st.multiselect("片区", actual_areas, default=actual_areas)
     sel_center = st.multiselect("运营中心", actual_centers, default=actual_centers)
 
-# ----------------------------- 应用筛选 -----------------------------
 def filter_by_date(df, date_range):
     if "日期" not in df.columns or df["日期"].isna().all():
         return df
@@ -222,23 +198,18 @@ if sel_cat:
 if sel_center:
     df_o = df_o[df_o["运营中心"].isin(sel_center)]
 
-# ----------------------------- 调试信息（仅在调试模式下显示） -----------------------------
+# 调试信息
 if st.session_state.debug_mode:
     with st.sidebar:
         st.markdown("---")
         st.subheader("🔎 诊断信息")
         st.write(f"原始主表行数: {len(df_main)}")
         st.write(f"日期筛选后行数: {len(filter_by_date(df_main, date_range))}")
-        st.write(f"品牌筛选后行数: {len(apply_brand_filter(filter_by_date(df_main, date_range), sel_brand))}")
         st.write(f"最终 df_m 行数: {len(df_m)}")
         if len(df_m) == 0:
-            st.error("❌ 无数据，请检查以下字段的唯一值是否包含筛选条件中的值：")
+            st.error("❌ 无数据，请检查筛选条件与数据中的实际值是否匹配")
             st.write("品牌唯一值:", df_main["品牌"].unique())
             st.write("品类唯一值:", df_main["品类"].unique())
-            st.write("运营中心唯一值:", df_main["运营中心"].unique())
-            st.write("片区唯一值:", df_main["片区"].unique())
-            st.write("日期范围:", date_range)
-            st.write("数据中日期范围:", df_main["日期"].min(), "~", df_main["日期"].max())
 
 # ----------------------------- 指标卡片 -----------------------------
 st.title("🏬 天猫新零售数据看板")
@@ -269,29 +240,53 @@ funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
 fig_funnel = go.Figure(go.Funnel(y=funnel_labels, x=funnel_values))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# ----------------------------- 转化率趋势（双轴图） -----------------------------
+# ----------------------------- 转化率趋势（四个率，双轴不同刻度，跟进率 = 已跟进/已分配） -----------------------------
 st.header("📈 转化率趋势")
 if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
+    # 按天聚合总客资、有效客资
     daily = df_m.groupby(df_m["日期"].dt.date).agg(
         总客资=("品牌", "count"),
         有效客资=("外呼状态", lambda x: x.isin(["高意向", "低意向", "无需外呼"]).sum())
     ).reset_index()
+    
+    # 按天聚合已分配、已跟进（针对有效客资）
+    valid_df = df_m[valid_mask]
+    if not valid_df.empty and "最新跟进状态" in valid_df.columns:
+        daily_assign = valid_df.groupby(valid_df["日期"].dt.date).agg(
+            已分配=("最新跟进状态", lambda x: (x != "未分配").sum()),
+            已跟进=("最新跟进状态", lambda x: (~x.isin(["未分配", "待查看", "待联系"])).sum())
+        ).reset_index()
+        daily = daily.merge(daily_assign, on="日期", how="left").fillna(0)
+    else:
+        daily["已分配"] = 0
+        daily["已跟进"] = 0
+    
+    # 成交数
     if not df_o.empty:
         daily_order = df_o.groupby(df_o["日期"].dt.date).size().reset_index(name="成交数")
         daily = daily.merge(daily_order, on="日期", how="left").fillna(0)
     else:
         daily["成交数"] = 0
-    daily["成交率"] = daily["成交数"] / daily["有效客资"].replace(0, pd.NA)
-
+    
+    # 计算四个率
+    daily["有效率"] = daily["有效客资"] / daily["总客资"].replace(0, pd.NA)
+    daily["分配率"] = daily["已分配"] / daily["有效客资"].replace(0, pd.NA)
+    # 跟进率 = 已跟进 / 已分配（注意分母为0时设为NA）
+    daily["跟进率"] = daily["已跟进"] / daily["已分配"].replace(0, pd.NA)
+    daily["转化率"] = daily["成交数"] / daily["有效客资"].replace(0, pd.NA)
+    
+    # 绘制双轴图：左轴有效率/分配率/跟进率(0~1, 刻度1%)，右轴转化率(0~1, 刻度50%)
     fig_trend = go.Figure()
-    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["有效客资"], mode='lines+markers', name='有效客资', yaxis='y1'))
-    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["成交数"], mode='lines+markers', name='成交数', yaxis='y1'))
-    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["成交率"], mode='lines+markers', name='成交率', yaxis='y2'))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["有效率"], mode='lines+markers', name='有效率', yaxis='y1'))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["分配率"], mode='lines+markers', name='分配率', yaxis='y1'))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["跟进率"], mode='lines+markers', name='跟进率', yaxis='y1'))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["转化率"], mode='lines+markers', name='转化率', yaxis='y2'))
+    
     fig_trend.update_layout(
-        title="有效客资、成交数与成交率趋势",
+        title="转化率趋势（有效率、分配率、跟进率、转化率）",
         xaxis_title="日期",
-        yaxis=dict(title="数量", side="left"),
-        yaxis2=dict(title="成交率", overlaying='y', side='right', tickformat='.0%'),
+        yaxis=dict(title="比率", side="left", tickformat='.0%', range=[0,1], dtick=0.01),
+        yaxis2=dict(title="转化率", overlaying='y', side="right", tickformat='.0%', range=[0,1], dtick=0.5),
         legend=dict(x=0.01, y=0.99)
     )
     st.plotly_chart(fig_trend, use_container_width=True)
