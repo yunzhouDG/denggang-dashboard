@@ -240,8 +240,23 @@ funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
 fig_funnel = go.Figure(go.Funnel(y=funnel_labels, x=funnel_values))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# ----------------------------- 转化率趋势（四个率，双轴，分段刻度：0-100%步长10%，100-360%步长20%） -----------------------------
+# ========================= 转化率趋势（分段映射，压缩100%以上区域） =========================
 st.header("📈 转化率趋势")
+
+def map_ratio(r):
+    """将原始比率 r (0~3.6) 映射到新的轴坐标，0-1.0 线性，>1.0 压缩5倍"""
+    if r <= 1.0:
+        return r
+    else:
+        return 1.0 + (r - 1.0) * 0.2
+
+def inv_map(y):
+    """逆映射（用于计算刻度位置）"""
+    if y <= 1.0:
+        return y
+    else:
+        return 1.0 + (y - 1.0) / 0.2
+
 if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     # 按天聚合
     daily = df_m.groupby(df_m["日期"].dt.date).agg(
@@ -274,52 +289,57 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     daily["跟进率"] = daily["已跟进"] / daily["已分配"].replace(0, pd.NA)
     daily["转化率"] = daily["成交数"] / daily["有效客资"].replace(0, pd.NA)
     
-    # 生成分段刻度：0~1.0 步长0.1 (10%)，1.0~3.6 步长0.2 (20%)
-    ticks = []
-    # 低区 0 到 1.0
-    current = 0.0
-    while current <= 1.0 + 1e-9:
-        ticks.append(round(current, 6))
-        current += 0.1
-    # 高区从 1.2 到 3.6
-    current = 1.2
-    while current <= 3.6 + 1e-9:
-        ticks.append(round(current, 6))
-        current += 0.2
-    # 确保包含 3.6
-    if 3.6 not in ticks:
-        ticks.append(3.6)
-    ticks = sorted(set(ticks))
-    ticktext = [f"{int(v*100)}%" for v in ticks]
+    # 对四个率应用映射
+    for col in ["有效率", "分配率", "跟进率", "转化率"]:
+        daily[col + "_mapped"] = daily[col].apply(lambda x: map_ratio(x) if pd.notna(x) else None)
     
-    # 绘制双轴图
+    # 生成原始刻度值（百分比标签）
+    raw_ticks = []
+    # 0-1.0 步长0.1
+    t = 0.0
+    while t <= 1.0 + 1e-9:
+        raw_ticks.append(round(t, 6))
+        t += 0.1
+    # 1.2-3.6 步长0.2
+    t = 1.2
+    while t <= 3.6 + 1e-9:
+        raw_ticks.append(round(t, 6))
+        t += 0.2
+    raw_ticks = sorted(set(raw_ticks))
+    # 计算映射后的坐标
+    mapped_ticks = [map_ratio(v) for v in raw_ticks]
+    tick_labels = [f"{int(v*100)}%" for v in raw_ticks]
+    
+    # 创建图形
     fig_trend = go.Figure()
-    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["有效率"], mode='lines+markers', name='有效率', yaxis='y1'))
-    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["分配率"], mode='lines+markers', name='分配率', yaxis='y1'))
-    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["跟进率"], mode='lines+markers', name='跟进率', yaxis='y1'))
-    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["转化率"], mode='lines+markers', name='转化率', yaxis='y2'))
+    fig_trend.add_trace(go.Scatter(
+        x=daily["日期"], y=daily["有效率_mapped"], mode='lines+markers', name='有效率'
+    ))
+    fig_trend.add_trace(go.Scatter(
+        x=daily["日期"], y=daily["分配率_mapped"], mode='lines+markers', name='分配率'
+    ))
+    fig_trend.add_trace(go.Scatter(
+        x=daily["日期"], y=daily["跟进率_mapped"], mode='lines+markers', name='跟进率'
+    ))
+    fig_trend.add_trace(go.Scatter(
+        x=daily["日期"], y=daily["转化率_mapped"], mode='lines+markers', name='转化率'
+    ))
     
+    # 设置 y 轴：范围 0 ~ 最大映射值（最大原始3.6映射到1.52）
+    y_max_mapped = map_ratio(3.6)
     fig_trend.update_layout(
-        title="转化率趋势（有效率、分配率、跟进率、转化率）",
+        title="转化率趋势（有效率、分配率、跟进率、转化率）<br><sub>注：100%以上区域已压缩，正常范围(0-100%)占据更大高度以突出细节</sub>",
         xaxis_title="日期",
         yaxis=dict(
             title="比率",
-            side="left",
             tickformat='.0%',
-            range=[0, 3.6],
-            tickvals=ticks,
-            ticktext=ticktext
+            range=[0, y_max_mapped],
+            tickvals=mapped_ticks,
+            ticktext=tick_labels,
+            tickangle=45   # 避免标签重叠
         ),
-        yaxis2=dict(
-            title="转化率",
-            overlaying='y',
-            side="right",
-            tickformat='.0%',
-            range=[0, 3.6],
-            tickvals=ticks,
-            ticktext=ticktext
-        ),
-        legend=dict(x=0.01, y=0.99)
+        legend=dict(x=0.01, y=0.99),
+        hovermode='x unified'
     )
     st.plotly_chart(fig_trend, use_container_width=True)
 else:
