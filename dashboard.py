@@ -64,12 +64,20 @@ def get_city_coord(city_name):
         return DEFAULT_COORD
     return coord
 
-# ----------------------------- 品牌筛选逻辑（支持虚拟汇总项） -----------------------------
+# ----------------------------- 品牌筛选逻辑（修复索引错误） -----------------------------
 def apply_brand_filter(df, selected_brands):
+    """
+    支持普通品牌（美的、东芝、小天鹅、COLMO）以及虚拟汇总项：
+    - 洗衣机汇总 -> 小天鹅 或 (美的 且 品类为洗衣机)
+    - 美的厨热 -> 美的 且 品类为厨热
+    - 美的冰箱 -> 美的 且 品类为冰箱
+    - 美的空调 -> 美的 且 品类为空调
+    """
     if not selected_brands:
         return df
+    # 使用 df 的索引创建初始条件 Series，避免索引不匹配
+    cond = pd.Series(False, index=df.index)
     normal_brands = [b for b in selected_brands if b not in ["洗衣机汇总", "美的厨热", "美的冰箱", "美的空调"]]
-    cond = pd.Series([False] * len(df))
     if normal_brands:
         cond |= df["品牌"].isin(normal_brands)
     if "洗衣机汇总" in selected_brands:
@@ -217,7 +225,7 @@ funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
 fig_funnel = go.Figure(go.Funnel(y=funnel_labels, x=funnel_values))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# ----------------------------- 转化率趋势（修复类型不一致错误） -----------------------------
+# ----------------------------- 转化率趋势（双轴图，修复类型错误） -----------------------------
 st.header("📈 转化率趋势")
 if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     daily = df_m.groupby(df_m["日期"].dt.date).agg(
@@ -231,7 +239,6 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
         daily["成交数"] = 0
     daily["成交率"] = daily["成交数"] / daily["有效客资"].replace(0, pd.NA)
 
-    # 使用双轴图解决数据类型不一致问题
     fig_trend = go.Figure()
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["有效客资"], mode='lines+markers', name='有效客资', yaxis='y1'))
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["成交数"], mode='lines+markers', name='成交数', yaxis='y1'))
