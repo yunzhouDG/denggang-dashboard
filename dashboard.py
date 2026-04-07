@@ -85,12 +85,10 @@ def extract_city_name(location):
     if not location or pd.isna(location):
         return None
     loc = str(location).strip()
-    # 去掉“市”、“区”、“县”后缀
     for suffix in ["市", "区", "县"]:
         if loc.endswith(suffix):
             loc = loc[:-len(suffix)]
             break
-    # 直辖市下的区映射
     beijing_districts = ['东城', '西城', '朝阳', '海淀', '丰台', '石景山', '门头沟', '房山', '通州', '顺义', '昌平', '大兴', '怀柔', '平谷', '密云', '延庆']
     if loc in beijing_districts:
         return '北京'
@@ -150,7 +148,6 @@ def load_data():
         conn.close()
         os.unlink(tmp_path)
 
-    # 日期处理
     if "获取时间" in df_main.columns:
         df_main["日期"] = pd.to_datetime(df_main["获取时间"], errors="coerce")
     elif "日期" in df_main.columns:
@@ -193,7 +190,6 @@ if "debug_mode" not in st.session_state:
 with st.sidebar:
     st.session_state.debug_mode = st.checkbox("🔧 调试模式", value=False)
 
-# 动态生成筛选选项
 actual_brands = sorted([b for b in df_main["品牌"].dropna().unique() if b and b != "未知"])
 actual_cats = sorted([c for c in df_main["品类"].dropna().unique() if c and c != "未知"])
 actual_centers = sorted([c for c in df_main["运营中心"].dropna().unique() if c and c != "未知"])
@@ -280,7 +276,7 @@ funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
 fig_funnel = go.Figure(go.Funnel(y=funnel_labels, x=funnel_values))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# ----------------------------- 转化率趋势（分段映射，压缩100%以上区域） -----------------------------
+# ----------------------------- 转化率趋势 -----------------------------
 st.header("📈 转化率趋势")
 
 def map_ratio(r):
@@ -320,7 +316,6 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     for col in ["有效率", "分配率", "跟进率", "转化率"]:
         daily[col + "_mapped"] = daily[col].apply(lambda x: map_ratio(x) if pd.notna(x) else None)
     
-    # 稀疏刻度：0-100%每10%，100%-360%每50%
     raw_ticks = []
     t = 0.0
     while t <= 1.0 + 1e-9:
@@ -344,7 +339,7 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     
     y_max_mapped = map_ratio(3.6)
     fig_trend.update_layout(
-        title="转化率趋势（有效率、分配率、跟进率、转化率）<br><sub>注：100%以上区域已压缩，正常范围(0-100%)占据更大高度以突出细节</sub>",
+        title="转化率趋势（有效率、分配率、跟进率、转化率）<br><sub>注：100%以上区域已压缩</sub>",
         xaxis_title="日期",
         yaxis=dict(
             title="比率",
@@ -384,10 +379,11 @@ else:
         fig3 = px.bar(center_sale, x="运营中心", y="万元", color="万元", title="运营中心销售额")
         st.plotly_chart(fig3, use_container_width=True)
 
-# ----------------------------- 省份销售额分布（热力图，修复分布问题） -----------------------------
+# ----------------------------- 省份销售额分布（专业级中国地图热力图） -----------------------------
 st.header("🗺️ 省份销售额分布")
+st.caption("省份销售额热力图（颜色越深代表销售额越高，单位：万元）")
+
 if not df_o.empty and "市区" in df_o.columns:
-    # 提取省份
     df_o["城市"] = df_o["市区"].apply(extract_city_name)
     df_o["省份"] = df_o["城市"].map(CITY_TO_PROVINCE)
     province_sale = df_o.groupby("省份")["订单金额"].sum().reset_index()
@@ -395,30 +391,45 @@ if not df_o.empty and "市区" in df_o.columns:
     province_sale["万元"] = province_sale["订单金额"] / 10000
     
     if not province_sale.empty:
-        # 省份中心坐标
-        PROVINCE_CENTER = {
-            '北京': [116.4074, 39.9042], '上海': [121.4737, 31.2304], '天津': [117.1902, 39.1256], '重庆': [106.5044, 29.5582],
-            '河北': [114.4995, 38.1006], '山西': [112.5624, 37.8735], '内蒙古': [111.7510, 40.8415], '辽宁': [123.4315, 41.8057],
-            '吉林': [125.3235, 43.8171], '黑龙江': [126.5364, 45.8022], '江苏': [118.7674, 32.0415], '浙江': [120.1551, 30.2741],
-            '安徽': [117.2272, 31.8206], '福建': [119.2965, 26.0745], '江西': [115.8582, 28.6820], '山东': [117.0009, 36.6758],
-            '河南': [113.6254, 34.7466], '湖北': [114.3055, 30.5931], '湖南': [112.9388, 28.2282], '广东': [113.2644, 23.1291],
-            '广西': [108.3661, 22.8176], '海南': [110.1999, 20.0440], '四川': [104.0668, 30.5728], '贵州': [106.6302, 26.6477],
-            '云南': [102.8329, 24.8801], '西藏': [91.1409, 29.6565], '陕西': [108.9402, 34.3416], '甘肃': [103.8343, 36.0611],
-            '青海': [101.7782, 36.6232], '宁夏': [106.2309, 38.4872], '新疆': [87.6168, 43.8256]
+        PROVINCE_NAME_MAP = {
+            '北京': '北京市', '上海': '上海市', '天津': '天津市', '重庆': '重庆市',
+            '河北': '河北省', '山西': '山西省', '内蒙古': '内蒙古自治区', '辽宁': '辽宁省',
+            '吉林': '吉林省', '黑龙江': '黑龙江省', '江苏': '江苏省', '浙江': '浙江省',
+            '安徽': '安徽省', '福建': '福建省', '江西': '江西省', '山东': '山东省',
+            '河南': '河南省', '湖北': '湖北省', '湖南': '湖南省', '广东': '广东省',
+            '广西': '广西壮族自治区', '海南': '海南省', '四川': '四川省', '贵州': '贵州省',
+            '云南': '云南省', '西藏': '西藏自治区', '陕西': '陕西省', '甘肃': '甘肃省',
+            '青海': '青海省', '宁夏': '宁夏回族自治区', '新疆': '新疆维吾尔自治区'
         }
-        province_sale["lon"] = province_sale["省份"].apply(lambda p: PROVINCE_CENTER.get(p, [116.4074,39.9042])[0])
-        province_sale["lat"] = province_sale["省份"].apply(lambda p: PROVINCE_CENTER.get(p, [116.4074,39.9042])[1])
-        
-        fig_map = px.scatter_geo(
+        province_sale["省份全称"] = province_sale["省份"].map(PROVINCE_NAME_MAP)
+        province_sale = province_sale.dropna(subset=["省份全称"])
+
+        fig_map = px.choropleth(
             province_sale,
-            lon="lon", lat="lat",
-            size="万元", color="万元",
-            hover_name="省份",
-            projection="natural earth",
-            title="省份销售额分布（气泡大小代表销售额，万元）",
-            color_continuous_scale="Blues"
+            geojson="https://raw.githubusercontent.com/plotly/datasets/master/geojson-china-provinces.json",
+            locations="省份全称",
+            featureidkey="properties.name",
+            color="万元",
+            color_continuous_scale="Blues",
+            range_color=(0, province_sale["万元"].max()),
+            hover_name="省份全称",
+            hover_data={"万元": ":,.2f", "订单金额": ":,.0f"},
+            title="全国省份销售额热力图",
+            labels={"万元": "销售额(万元)"}
         )
-        fig_map.update_layout(geo=dict(scope='asia', center=dict(lat=35, lon=105), projection_scale=1.2))
+
+        fig_map.update_geos(
+            fitbounds="locations",
+            visible=False,
+            projection_type="mercator",
+            lataxis_range=[18, 54],
+            lonaxis_range=[73, 135]
+        )
+        fig_map.update_layout(
+            margin={"r":0,"t":50,"l":0,"b":0},
+            coloraxis_colorbar=dict(title="销售额(万元)", tickformat=".0f", len=0.8),
+            title_x=0.5, title_font_size=20
+        )
         st.plotly_chart(fig_map, use_container_width=True)
     else:
         st.info("无法将城市映射到省份，请检查订单表中的'市区'字段")
