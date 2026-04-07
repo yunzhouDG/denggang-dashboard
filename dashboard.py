@@ -60,14 +60,16 @@ def get_city_coord(city_name):
     city_str = direct_map.get(city_str, city_str)
     coord = CITY_COORDS.get(city_str)
     if coord is None:
-        st.warning(f"未找到城市 '{city_name}' 的坐标，将使用北京默认坐标")
+        # 只在调试模式输出警告，避免刷屏
+        if st.session_state.get("debug_mode", False):
+            st.warning(f"未找到城市 '{city_name}' 的坐标，使用北京默认")
         return DEFAULT_COORD
     return coord
 
 # ----------------------------- 品牌筛选逻辑（修复索引错误） -----------------------------
 def apply_brand_filter(df, selected_brands):
     """
-    支持普通品牌（美的、东芝、小天鹅、COLMO）以及虚拟汇总项：
+    支持普通品牌以及虚拟汇总项：
     - 洗衣机汇总 -> 小天鹅 或 (美的 且 品类为洗衣机)
     - 美的厨热 -> 美的 且 品类为厨热
     - 美的冰箱 -> 美的 且 品类为冰箱
@@ -117,11 +119,14 @@ def load_data():
         conn.close()
         os.unlink(tmp_path)
 
-    # 日期处理
+    # 日期处理：优先使用“获取时间”，若无则尝试“日期”
     if "获取时间" in df_main.columns:
         df_main["日期"] = pd.to_datetime(df_main["获取时间"], errors="coerce")
+    elif "日期" in df_main.columns:
+        df_main["日期"] = pd.to_datetime(df_main["日期"], errors="coerce")
     else:
         df_main["日期"] = pd.NaT
+
     if "日期" in df_order.columns:
         df_order["日期"] = pd.to_datetime(df_order["日期"], errors="coerce")
     else:
@@ -133,7 +138,7 @@ def load_data():
     else:
         df_order["订单金额"] = 0.0
 
-    # 统一字段
+    # 统一字段（缺失则填充默认值）
     for df in [df_main, df_order]:
         df["品牌"] = df.get("品牌", df.get("意向品牌", "未知")).fillna("未知")
         df["品类"] = df.get("品类", "未知").fillna("未知")
@@ -148,30 +153,51 @@ def load_data():
 
     return df_main, df_order
 
+# ----------------------------- 主程序 -----------------------------
 df_main, df_order = load_data()
 
 if df_main.empty:
     st.error("客资明细表为空，请检查数据源")
     st.stop()
 
-# ----------------------------- 侧边栏筛选 -----------------------------
-st.sidebar.header("🔍 筛选条件")
-min_date = df_main["日期"].min().date() if not df_main["日期"].isna().all() else datetime.today().date()
-max_date = df_main["日期"].max().date() if not df_main["日期"].isna().all() else datetime.today().date()
-date_range = st.sidebar.date_input("日期范围", [min_date, max_date])
+# 侧边栏调试模式开关（默认关闭，需要时可打开）
+if "debug_mode" not in st.session_state:
+    st.session_state.debug_mode = False
+with st.sidebar:
+    st.session_state.debug_mode = st.checkbox("🔧 调试模式（显示详细诊断）", value=False)
 
-brand_options = ["美的", "东芝", "小天鹅", "COLMO", "美的厨热", "美的冰箱", "美的空调", "洗衣机汇总"]
-cat_options = sorted([x for x in df_main["品类"].dropna().unique() if x and x != "未知"])
-center_options = sorted([x for x in df_main["运营中心"].dropna().unique() if x and x != "未知"])
-area_options = sorted([x for x in df_main["片区"].dropna().unique() if x and x != "未知"])
+# ----------------------------- 动态生成筛选选项（避免空数据） -----------------------------
+# 从数据中提取实际存在的值（过滤掉“未知”和空值）
+actual_brands = sorted(df_main["品牌"].dropna().unique())
+actual_brands = [b for b in actual_brands if b and b != "未知"]
+actual_cats = sorted(df_main["品类"].dropna().unique())
+actual_cats = [c for c in actual_cats if c and c != "未知"]
+actual_centers = sorted(df_main["运营中心"].dropna().unique())
+actual_centers = [c for c in actual_centers if c and c != "未知"]
+actual_areas = sorted(df_main["片区"].dropna().unique())
+actual_areas = [a for a in actual_areas if a and a != "未知"]
+
+# 品牌选项：实际品牌 + 虚拟汇总项
+brand_options = actual_brands + ["洗衣机汇总", "美的厨热", "美的冰箱", "美的空调"]
+
+st.sidebar.header("🔍 筛选条件")
+
+# 日期范围（若日期全为空则使用今天）
+if not df_main["日期"].isna().all():
+    min_date = df_main["日期"].min().date()
+    max_date = df_main["日期"].max().date()
+else:
+    min_date = datetime.today().date()
+    max_date = datetime.today().date()
+date_range = st.sidebar.date_input("日期范围", [min_date, max_date])
 
 col1_s, col2_s = st.sidebar.columns(2)
 with col1_s:
-    sel_brand = st.multiselect("品牌", brand_options, default=brand_options)
-    sel_cat = st.multiselect("品类", cat_options, default=cat_options)
+    sel_brand = st.multiselect("品牌", brand_options, default=actual_brands)
+    sel_cat = st.multiselect("品类", actual_cats, default=actual_cats)
 with col2_s:
-    sel_area = st.multiselect("片区", area_options, default=area_options)
-    sel_center = st.multiselect("运营中心", center_options, default=center_options)
+    sel_area = st.multiselect("片区", actual_areas, default=actual_areas)
+    sel_center = st.multiselect("运营中心", actual_centers, default=actual_centers)
 
 # ----------------------------- 应用筛选 -----------------------------
 def filter_by_date(df, date_range):
@@ -195,6 +221,24 @@ if sel_cat:
     df_o = df_o[df_o["品类"].isin(sel_cat)]
 if sel_center:
     df_o = df_o[df_o["运营中心"].isin(sel_center)]
+
+# ----------------------------- 调试信息（仅在调试模式下显示） -----------------------------
+if st.session_state.debug_mode:
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("🔎 诊断信息")
+        st.write(f"原始主表行数: {len(df_main)}")
+        st.write(f"日期筛选后行数: {len(filter_by_date(df_main, date_range))}")
+        st.write(f"品牌筛选后行数: {len(apply_brand_filter(filter_by_date(df_main, date_range), sel_brand))}")
+        st.write(f"最终 df_m 行数: {len(df_m)}")
+        if len(df_m) == 0:
+            st.error("❌ 无数据，请检查以下字段的唯一值是否包含筛选条件中的值：")
+            st.write("品牌唯一值:", df_main["品牌"].unique())
+            st.write("品类唯一值:", df_main["品类"].unique())
+            st.write("运营中心唯一值:", df_main["运营中心"].unique())
+            st.write("片区唯一值:", df_main["片区"].unique())
+            st.write("日期范围:", date_range)
+            st.write("数据中日期范围:", df_main["日期"].min(), "~", df_main["日期"].max())
 
 # ----------------------------- 指标卡片 -----------------------------
 st.title("🏬 天猫新零售数据看板")
@@ -225,7 +269,7 @@ funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
 fig_funnel = go.Figure(go.Funnel(y=funnel_labels, x=funnel_values))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# ----------------------------- 转化率趋势（双轴图，修复类型错误） -----------------------------
+# ----------------------------- 转化率趋势（双轴图） -----------------------------
 st.header("📈 转化率趋势")
 if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     daily = df_m.groupby(df_m["日期"].dt.date).agg(
@@ -252,7 +296,7 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     )
     st.plotly_chart(fig_trend, use_container_width=True)
 else:
-    st.info("无日期数据，无法绘制趋势图")
+    st.info("无有效日期数据，无法绘制趋势图")
 
 # ----------------------------- 销售额分布 -----------------------------
 st.header("💰 销售额分布")
