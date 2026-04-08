@@ -152,25 +152,6 @@ def extract_province_from_shengshi(shengshi):
     else:
         return normalize_province_name(s)
 
-# ----------------------------- 多源GeoJSON加载 -----------------------------
-@st.cache_data(show_spinner="加载中国地图边界数据...")
-def get_china_geojson():
-    urls = [
-        "https://cdn.jsdelivr.net/npm/china-geojson@1.0.0/province.geojson",
-        "https://raw.githubusercontent.com/geoi18/China-GeoJSON/master/Province.geojson",
-        "https://gitee.com/linjiangb/chinageojson/raw/master/province.geojson"
-    ]
-    for url in urls:
-        try:
-            response = requests.get(url, timeout=8)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('type') in ['FeatureCollection', 'GeometryCollection'] or 'features' in data:
-                    return data
-        except:
-            continue
-    return None
-
 # ----------------------------- 主程序 -----------------------------
 df_main, df_order = load_data()
 if df_main.empty:
@@ -263,13 +244,75 @@ funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
 fig_funnel = go.Figure(go.Funnel(y=funnel_labels, x=funnel_values))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# 转化率趋势（保持原样，此处省略详细代码，实际运行时需保留，但为了简洁，这里不重复）
-# ...（建议您从之前完整代码中复制转化率趋势部分，这里不占用篇幅）
+# 转化率趋势
+st.header("📈 转化率趋势")
+def map_ratio(r):
+    if r <= 1.0:
+        return r
+    else:
+        return 1.0 + (r - 1.0) * 0.2
 
-# 销售额分布
+if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
+    daily = df_m.groupby(df_m["日期"].dt.date).agg(
+        总客资=("品牌", "count"),
+        有效客资=("外呼状态", lambda x: x.isin(["高意向", "低意向", "无需外呼"]).sum())
+    ).reset_index()
+    valid_df = df_m[valid_mask]
+    if not valid_df.empty and "最新跟进状态" in valid_df.columns:
+        daily_assign = valid_df.groupby(valid_df["日期"].dt.date).agg(
+            已分配=("最新跟进状态", lambda x: (x != "未分配").sum()),
+            已跟进=("最新跟进状态", lambda x: (~x.isin(["未分配", "待查看", "待联系"])).sum())
+        ).reset_index()
+        daily = daily.merge(daily_assign, on="日期", how="left").fillna(0)
+    else:
+        daily["已分配"] = 0
+        daily["已跟进"] = 0
+    if not df_o.empty:
+        daily_order = df_o.groupby(df_o["日期"].dt.date).size().reset_index(name="成交数")
+        daily = daily.merge(daily_order, on="日期", how="left").fillna(0)
+    else:
+        daily["成交数"] = 0
+    daily["有效率"] = daily["有效客资"] / daily["总客资"].replace(0, pd.NA)
+    daily["分配率"] = daily["已分配"] / daily["有效客资"].replace(0, pd.NA)
+    daily["跟进率"] = daily["已跟进"] / daily["已分配"].replace(0, pd.NA)
+    daily["转化率"] = daily["成交数"] / daily["有效客资"].replace(0, pd.NA)
+    for col in ["有效率", "分配率", "跟进率", "转化率"]:
+        daily[col + "_mapped"] = daily[col].apply(lambda x: map_ratio(x) if pd.notna(x) else None)
+    raw_ticks = []
+    t = 0.0
+    while t <= 1.0 + 1e-9:
+        raw_ticks.append(round(t, 6))
+        t += 0.1
+    t = 1.5
+    while t <= 3.6 + 1e-9:
+        raw_ticks.append(round(t, 6))
+        t += 0.5
+    if 3.6 not in raw_ticks:
+        raw_ticks.append(3.6)
+    raw_ticks = sorted(set(raw_ticks))
+    mapped_ticks = [map_ratio(v) for v in raw_ticks]
+    tick_labels = [f"{int(v*100)}%" for v in raw_ticks]
+    fig_trend = go.Figure()
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["有效率_mapped"], mode='lines+markers', name='有效率'))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["分配率_mapped"], mode='lines+markers', name='分配率'))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["跟进率_mapped"], mode='lines+markers', name='跟进率'))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["转化率_mapped"], mode='lines+markers', name='转化率'))
+    y_max_mapped = map_ratio(3.6)
+    fig_trend.update_layout(
+        title="转化率趋势（有效率、分配率、跟进率、转化率）<br><sub>注：100%以上区域已压缩</sub>",
+        xaxis_title="日期",
+        yaxis=dict(title="比率", tickformat='.0%', range=[0, y_max_mapped], tickvals=mapped_ticks, ticktext=tick_labels, tickangle=45),
+        legend=dict(x=0.01, y=0.99),
+        hovermode='x unified'
+    )
+    st.plotly_chart(fig_trend, use_container_width=True)
+else:
+    st.info("无有效日期数据，无法绘制趋势图")
+
+# 销售额分布（品牌、品类、运营中心）
 st.header("💰 销售额分布")
 if df_o.empty:
-    st.warning("当前筛选条件下无订单数据")
+    st.warning("当前筛选条件下无订单数据，无法展示销售额分布")
 else:
     tab1, tab2, tab3 = st.tabs(["品牌", "品类", "运营中心"])
     with tab1:
@@ -288,107 +331,64 @@ else:
         fig3 = px.bar(center_sale, x="运营中心", y="万元", color="万元", title="运营中心销售额")
         st.plotly_chart(fig3, use_container_width=True)
 
-# ======================= 省份销售额热力图（修复名称匹配） =======================
+# ======================= 省份销售额分布：柱状图 + 气泡地图 =======================
 st.header("🗺️ 省份销售额分布")
-st.caption("省份销售额热力图（填充地图）")
+st.caption("左侧：各省份销售额排序（横向柱状图）｜右侧：气泡地图（大小代表销售额）")
 
 if df_o.empty:
     st.info("暂无订单数据，无法绘制省份销售额分布")
 else:
     if "省市" not in df_o.columns:
-        st.error("订单表中缺少'省市'字段")
+        st.error("订单表中缺少'省市'字段，无法按省份统计。")
     else:
         # 提取省份标准化名称
         df_o["省份_std"] = df_o["省市"].apply(extract_province_from_shengshi)
         province_sale = df_o.groupby("省份_std")["订单金额"].sum().reset_index()
         province_sale = province_sale[province_sale["省份_std"].notna() & (province_sale["省份_std"] != "")]
         province_sale["万元"] = province_sale["订单金额"] / 10000
-
+        
         if st.session_state.debug_mode:
             with st.expander("🔍 省份提取调试信息"):
                 st.write("省市字段样例：", df_o["省市"].dropna().unique()[:20])
                 st.write("提取后的标准化省份：", province_sale["省份_std"].tolist())
-
+        
         if province_sale.empty:
             st.warning("未能从'省市'字段中提取到有效省份")
         else:
-            geojson = get_china_geojson()
-            if geojson:
-                try:
-                    # 获取GeoJSON中所有省份名称及其使用的属性键
-                    geojson_names = []
-                    name_key = None
-                    for feature in geojson['features']:
-                        props = feature['properties']
-                        # 查找可能的名称字段
-                        for key in ['name', 'NAME', '省', 'province']:
-                            if key in props:
-                                name_key = key
-                                geojson_names.append(props[key])
-                                break
-                        if name_key is None and len(props) > 0:
-                            name_key = list(props.keys())[0]
-                            geojson_names.append(props[name_key])
-                    if st.session_state.debug_mode:
-                        st.write(f"GeoJSON名称字段: {name_key}")
-                        st.write("GeoJSON中的省份名称（前20）：", geojson_names[:20])
-
-                    # 建立映射：标准化名称 -> GeoJSON中的实际名称
-                    name_map = {}
-                    for std in province_sale["省份_std"].unique():
-                        matched = None
-                        # 精确匹配
-                        if std in geojson_names:
-                            matched = std
-                        else:
-                            # 尝试去除最后一个字符（省、市、自治区）后匹配
-                            simple = std.replace('省', '').replace('市', '').replace('自治区', '')
-                            for gname in geojson_names:
-                                if simple == gname or gname.startswith(simple):
-                                    matched = gname
-                                    break
-                        if matched:
-                            name_map[std] = matched
-                        else:
-                            # 未匹配，保留原值（可能会失败，但不影响其他）
-                            name_map[std] = std
-                            if st.session_state.debug_mode:
-                                st.warning(f"未找到匹配: {std}")
-
-                    province_sale["geojson_name"] = province_sale["省份_std"].map(name_map)
-                    province_sale_geo = province_sale[province_sale["geojson_name"].notna()]
-
-                    if province_sale_geo.empty:
-                        st.warning("无法将省份名称映射到GeoJSON，请检查调试信息")
-                        geojson = None
-                    else:
-                        fig_map = px.choropleth(
-                            province_sale_geo,
-                            geojson=geojson,
-                            locations="geojson_name",
-                            featureidkey=f"properties.{name_key}",
-                            color="万元",
-                            color_continuous_scale="Blues",
-                            range_color=(0, province_sale_geo["万元"].max()),
-                            hover_name="省份_std",
-                            hover_data={"万元": ":,.2f"},
-                            title="全国省份销售额热力图（万元）"
-                        )
-                        fig_map.update_geos(fitbounds="locations", visible=False)
-                        fig_map.update_layout(margin={"r":0, "t":50, "l":0, "b":0}, height=700)
-                        st.plotly_chart(fig_map, use_container_width=True)
-                        geojson = None  # 成功，跳过降级
-                except Exception as e:
-                    st.warning(f"热力图渲染失败: {e}，使用气泡图代替")
-                    geojson = None
-            if not geojson:
-                # 降级：带文字标签的气泡图
+            # 排序（降序，用于柱状图）
+            province_sale_sorted = province_sale.sort_values("万元", ascending=False)
+            
+            # 创建两列布局
+            col_left, col_right = st.columns([1, 1])
+            
+            with col_left:
+                st.subheader("📊 各省份销售额排行")
+                # 横向柱状图（条形图）
+                fig_bar = px.bar(
+                    province_sale_sorted,
+                    x="万元",
+                    y="省份_std",
+                    orientation='h',
+                    color="万元",
+                    color_continuous_scale="Blues",
+                    text="万元",
+                    title="销售额（万元）",
+                    labels={"万元": "销售额(万元)", "省份_std": ""}
+                )
+                fig_bar.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+                fig_bar.update_layout(height=600, yaxis={'categoryorder':'total ascending'})
+                st.plotly_chart(fig_bar, use_container_width=True)
+            
+            with col_right:
+                st.subheader("🗺️ 气泡地图（地理分布）")
+                # 添加经纬度（使用预定义中心坐标）
                 province_sale["lon"] = province_sale["省份_std"].apply(
                     lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[0]
                 )
                 province_sale["lat"] = province_sale["省份_std"].apply(
                     lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[1]
                 )
+                # 气泡图
                 fig_map = go.Figure()
                 fig_map.add_trace(go.Scattergeo(
                     lon=province_sale["lon"],
@@ -396,7 +396,7 @@ else:
                     mode='markers+text',
                     text=province_sale["省份_std"],
                     textposition="top center",
-                    textfont=dict(size=12, color="black"),
+                    textfont=dict(size=11, color="black"),
                     marker=dict(
                         size=province_sale["万元"] / province_sale["万元"].max() * 40 + 10,
                         color=province_sale["万元"],
@@ -409,9 +409,16 @@ else:
                     hovertext=province_sale.apply(lambda r: f"{r['省份_std']}<br>销售额: {r['万元']:.2f}万元", axis=1)
                 ))
                 fig_map.update_layout(
-                    title="全国省份销售额分布（气泡图，因轮廓数据不可用）",
-                    geo=dict(scope='asia', center=dict(lat=35, lon=105), projection_scale=1.2, showland=True, landcolor='rgb(243,243,243)'),
-                    height=700
+                    title="气泡大小代表销售额",
+                    geo=dict(
+                        scope='asia',
+                        center=dict(lat=35, lon=105),
+                        projection_scale=1.2,
+                        showland=True,
+                        landcolor='rgb(243,243,243)'
+                    ),
+                    height=600,
+                    margin={"r":0,"t":40,"l":0,"b":0}
                 )
                 st.plotly_chart(fig_map, use_container_width=True)
 
