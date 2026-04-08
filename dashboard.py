@@ -82,6 +82,18 @@ CITY_TO_PROVINCE = {
     '乌鲁木齐': '新疆', '克拉玛依': '新疆', '吐鲁番': '新疆', '哈密': '新疆', '昌吉': '新疆', '博尔塔拉': '新疆', '巴音郭楞': '新疆', '阿克苏': '新疆', '克孜勒苏': '新疆', '喀什': '新疆', '和田': '新疆', '伊犁': '新疆', '塔城': '新疆', '阿勒泰': '新疆',
 }
 
+# 省份中心坐标（用于气泡地图）
+PROVINCE_CENTER = {
+    '北京': [116.4074, 39.9042], '上海': [121.4737, 31.2304], '天津': [117.1902, 39.1256], '重庆': [106.5044, 29.5582],
+    '河北': [114.4995, 38.1006], '山西': [112.5624, 37.8735], '内蒙古': [111.7510, 40.8415], '辽宁': [123.4315, 41.8057],
+    '吉林': [125.3235, 43.8171], '黑龙江': [126.5364, 45.8022], '江苏': [118.7674, 32.0415], '浙江': [120.1551, 30.2741],
+    '安徽': [117.2272, 31.8206], '福建': [119.2965, 26.0745], '江西': [115.8582, 28.6820], '山东': [117.0009, 36.6758],
+    '河南': [113.6254, 34.7466], '湖北': [114.3055, 30.5931], '湖南': [112.9388, 28.2282], '广东': [113.2644, 23.1291],
+    '广西': [108.3661, 22.8176], '海南': [110.1999, 20.0440], '四川': [104.0668, 30.5728], '贵州': [106.6302, 26.6477],
+    '云南': [102.8329, 24.8801], '西藏': [91.1409, 29.6565], '陕西': [108.9402, 34.3416], '甘肃': [103.8343, 36.0611],
+    '青海': [101.7782, 36.6232], '宁夏': [106.2309, 38.4872], '新疆': [87.6168, 43.8256]
+}
+
 def extract_city_name(location):
     """从订单表的市区字段提取城市名"""
     if not location or pd.isna(location):
@@ -105,7 +117,6 @@ def extract_city_name(location):
         return '重庆'
     return loc
 
-# ----------------------------- 品牌筛选逻辑 -----------------------------
 def apply_brand_filter(df, selected_brands):
     if not selected_brands:
         return df
@@ -181,22 +192,6 @@ def load_data():
 
     return df_main, df_order
 
-# ----------------------------- 加载标准中国地图GeoJSON（双源降级） -----------------------------
-@st.cache_data(show_spinner="加载中国地图数据...")
-def get_china_geojson():
-    urls = [
-        "https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json",
-        "https://cdn.jsdelivr.net/npm/china-geojson@1.0.0/100000_full.json"
-    ]
-    for url in urls:
-        try:
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                return response.json()
-        except:
-            continue
-    return None
-
 # ----------------------------- 主程序 -----------------------------
 df_main, df_order = load_data()
 if df_main.empty:
@@ -262,7 +257,7 @@ if st.session_state.debug_mode:
         st.write(f"最终 df_m 行数: {len(df_m)}")
         if len(df_m) == 0:
             st.error("❌ 无数据，请检查筛选条件与数据中的实际值是否匹配")
-            st.write("品牌唯一值:", df_main["brand"].unique() if "brand" in df_main else df_main["品牌"].unique())
+            st.write("品牌唯一值:", df_main["品牌"].unique())
             st.write("品类唯一值:", df_main["品类"].unique())
 
 # ----------------------------- 指标卡片 -----------------------------
@@ -397,71 +392,34 @@ else:
         fig3 = px.bar(center_sale, x="运营中心", y="万元", color="万元", title="运营中心销售额")
         st.plotly_chart(fig3, use_container_width=True)
 
-# ----------------------------- 省份销售额分布（双保险：优先填充地图，降级气泡图） -----------------------------
+# ----------------------------- 省份销售额分布（强制气泡地图，稳定可靠） -----------------------------
 st.header("🗺️ 省份销售额分布")
-st.caption("省份销售额分布（颜色/气泡大小代表销售额，单位：万元）")
+st.caption("省份销售额分布（气泡大小代表销售额，单位：万元）")
 
 if not df_o.empty and "市区" in df_o.columns:
-    # 提取省份
+    # 提取城市和省份
     df_o["城市"] = df_o["市区"].apply(extract_city_name)
     df_o["省份"] = df_o["城市"].map(CITY_TO_PROVINCE)
     province_sale = df_o.groupby("省份")["订单金额"].sum().reset_index()
     province_sale = province_sale[province_sale["省份"].notna() & (province_sale["省份"] != "")]
     province_sale["万元"] = province_sale["订单金额"] / 10000
     
+    # 调试信息
+    if st.session_state.debug_mode:
+        with st.expander("🔍 省份映射调试信息"):
+            st.write("市区样例（去重前10）：", df_o["市区"].dropna().unique()[:10])
+            st.write("城市映射结果样例：", df_o["城市"].dropna().unique()[:10])
+            st.write("省份映射结果：", province_sale)
+            missing_cities = set(df_o["城市"].dropna().unique()) - set(CITY_TO_PROVINCE.keys())
+            if missing_cities:
+                st.warning(f"以下城市无法映射到省份：{missing_cities}")
+    
     if not province_sale.empty:
-        # 省份中心坐标（用于气泡地图）
-        PROVINCE_CENTER = {
-            '北京': [116.4074, 39.9042], '上海': [121.4737, 31.2304], '天津': [117.1902, 39.1256], '重庆': [106.5044, 29.5582],
-            '河北': [114.4995, 38.1006], '山西': [112.5624, 37.8735], '内蒙古': [111.7510, 40.8415], '辽宁': [123.4315, 41.8057],
-            '吉林': [125.3235, 43.8171], '黑龙江': [126.5364, 45.8022], '江苏': [118.7674, 32.0415], '浙江': [120.1551, 30.2741],
-            '安徽': [117.2272, 31.8206], '福建': [119.2965, 26.0745], '江西': [115.8582, 28.6820], '山东': [117.0009, 36.6758],
-            '河南': [113.6254, 34.7466], '湖北': [114.3055, 30.5931], '湖南': [112.9388, 28.2282], '广东': [113.2644, 23.1291],
-            '广西': [108.3661, 22.8176], '海南': [110.1999, 20.0440], '四川': [104.0668, 30.5728], '贵州': [106.6302, 26.6477],
-            '云南': [102.8329, 24.8801], '西藏': [91.1409, 29.6565], '陕西': [108.9402, 34.3416], '甘肃': [103.8343, 36.0611],
-            '青海': [101.7782, 36.6232], '宁夏': [106.2309, 38.4872], '新疆': [87.6168, 43.8256]
-        }
-        province_sale["lon"] = province_sale["省份"].apply(lambda p: PROVINCE_CENTER.get(p, [116.4074,39.9042])[0])
-        province_sale["lat"] = province_sale["省份"].apply(lambda p: PROVINCE_CENTER.get(p, [116.4074,39.9042])[1])
-
-        # 尝试加载GeoJSON
-        china_geojson = get_china_geojson()
-        if china_geojson:
-            try:
-                PROVINCE_NAME_MAP = {
-                    '北京': '北京市', '上海': '上海市', '天津': '天津市', '重庆': '重庆市',
-                    '河北': '河北省', '山西': '山西省', '内蒙古': '内蒙古自治区', '辽宁': '辽宁省',
-                    '吉林': '吉林省', '黑龙江': '黑龙江省', '江苏': '江苏省', '浙江': '浙江省',
-                    '安徽': '安徽省', '福建': '福建省', '江西': '江西省', '山东': '山东省',
-                    '河南': '河南省', '湖北': '湖北省', '湖南': '湖南省', '广东': '广东省',
-                    '广西': '广西壮族自治区', '海南': '海南省', '四川': '四川省', '贵州': '贵州省',
-                    '云南': '云南省', '西藏': '西藏自治区', '陕西': '陕西省', '甘肃': '甘肃省',
-                    '青海': '青海省', '宁夏': '宁夏回族自治区', '新疆': '新疆维吾尔自治区'
-                }
-                province_sale["省份全称"] = province_sale["省份"].map(PROVINCE_NAME_MAP)
-                province_sale_geo = province_sale.dropna(subset=["省份全称"])
-                if not province_sale_geo.empty:
-                    fig_map = px.choropleth(
-                        province_sale_geo,
-                        geojson=china_geojson,
-                        locations="省份全称",
-                        featureidkey="properties.name",
-                        color="万元",
-                        color_continuous_scale="Blues",
-                        range_color=(0, province_sale_geo["万元"].max()),
-                        hover_name="省份全称",
-                        hover_data={"万元": ":,.2f"},
-                        title="全国省份销售额热力图（填充地图）"
-                    )
-                    fig_map.update_geos(fitbounds="locations", visible=False)
-                    fig_map.update_layout(margin={"r":0,"t":50,"l":0,"b":0}, height=700)
-                    st.plotly_chart(fig_map, use_container_width=True)
-                    st.stop()  # 成功显示后不再执行气泡图
-            except Exception as e:
-                if st.session_state.debug_mode:
-                    st.warning(f"GeoJSON渲染失败: {e}，使用气泡地图")
-
-        # 降级方案：气泡地图
+        # 添加经纬度
+        province_sale["lon"] = province_sale["省份"].apply(lambda p: PROVINCE_CENTER.get(p, [116.4074, 39.9042])[0])
+        province_sale["lat"] = province_sale["省份"].apply(lambda p: PROVINCE_CENTER.get(p, [116.4074, 39.9042])[1])
+        
+        # 绘制气泡地图（不依赖 GeoJSON）
         fig_map = px.scatter_geo(
             province_sale,
             lon="lon", lat="lat",
@@ -473,13 +431,21 @@ if not df_o.empty and "市区" in df_o.columns:
             size_max=60
         )
         fig_map.update_layout(
-            geo=dict(scope='asia', center=dict(lat=35, lon=105), projection_scale=1.2),
-            margin={"r":0,"t":50,"l":0,"b":0},
+            geo=dict(
+                scope='asia',
+                center=dict(lat=35, lon=105),
+                projection_scale=1.2,
+                showland=True,
+                landcolor='rgb(243,243,243)',
+                countrycolor='rgb(204,204,204)',
+                coastlinecolor='rgb(204,204,204)'
+            ),
+            margin={"r":0, "t":50, "l":0, "b":0},
             height=700
         )
         st.plotly_chart(fig_map, use_container_width=True)
     else:
-        st.error("❌ 无法将城市映射到省份，请检查订单表中的'市区'字段")
+        st.error("❌ 无法将城市映射到省份，请检查订单表中的'市区'字段。开启调试模式可查看详细映射信息。")
 else:
     st.info("暂无订单城市数据")
 
