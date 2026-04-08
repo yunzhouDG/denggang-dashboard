@@ -393,14 +393,13 @@ else:
         fig3 = px.bar(center_sale, x="运营中心", y="万元", color="万元", title="运营中心销售额")
         st.plotly_chart(fig3, use_container_width=True)
 
-# ======================= 省份销售额分布（直接使用"省市"字段，增强提取逻辑） =======================
+# ======================= 省份销售额分布（增强气泡图，显示省份文字标签） =======================
 st.header("🗺️ 省份销售额分布")
-st.caption("省份销售额热力图（填充地图）")
+st.caption("省份销售额气泡图（气泡大小代表销售额，单位：万元；文字直接显示省份名称）")
 
 if df_o.empty:
     st.info("暂无订单数据，无法绘制省份销售额分布")
 else:
-    # 检查是否有"省市"字段
     if "省市" not in df_o.columns:
         st.error("订单表中缺少'省市'字段，无法按省份统计。请检查数据源。")
     else:
@@ -418,53 +417,54 @@ else:
         if province_sale.empty:
             st.warning("未能从'省市'字段中提取到有效省份，请检查数据格式。")
         else:
-            # 尝试加载 GeoJSON
-            china_geojson = get_china_geojson()
-            if china_geojson:
-                try:
-                    # 注意：GeoJSON 中省份的字段名通常是 "name"
-                    fig_map = px.choropleth(
-                        province_sale,
-                        geojson=china_geojson,
-                        locations="省份_std",
-                        featureidkey="properties.name",
-                        color="万元",
-                        color_continuous_scale="Blues",
-                        range_color=(0, province_sale["万元"].max()),
-                        hover_name="省份_std",
-                        hover_data={"万元": ":,.2f"},
-                        title="全国省份销售额热力图（万元）"
-                    )
-                    fig_map.update_geos(fitbounds="locations", visible=False)
-                    fig_map.update_layout(margin={"r":0,"t":50,"l":0,"b":0}, height=700)
-                    st.plotly_chart(fig_map, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"热力图渲染失败: {e}，将使用气泡图代替")
-                    china_geojson = None
-            if not china_geojson:
-                # 降级方案：气泡地图
-                province_sale["lon"] = province_sale["省份_std"].apply(
-                    lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[0]
-                )
-                province_sale["lat"] = province_sale["省份_std"].apply(
-                    lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[1]
-                )
-                fig_map = px.scatter_geo(
-                    province_sale,
-                    lon="lon", lat="lat",
-                    size="万元", color="万元",
-                    hover_name="省份_std",
-                    projection="natural earth",
-                    title="全国省份销售额分布（气泡图，因热力图数据不可用）",
-                    color_continuous_scale="Blues",
-                    size_max=60
-                )
-                fig_map.update_layout(
-                    geo=dict(scope='asia', center=dict(lat=35, lon=105), projection_scale=1.2),
-                    margin={"r":0,"t":50,"l":0,"b":0},
-                    height=700
-                )
-                st.plotly_chart(fig_map, use_container_width=True)
+            # 添加经纬度
+            province_sale["lon"] = province_sale["省份_std"].apply(
+                lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[0]
+            )
+            province_sale["lat"] = province_sale["省份_std"].apply(
+                lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[1]
+            )
+            
+            # 使用 go.Scattergeo 绘制带文字标签的气泡图
+            fig_map = go.Figure()
+            
+            # 添加气泡（散点）
+            fig_map.add_trace(go.Scattergeo(
+                lon=province_sale["lon"],
+                lat=province_sale["lat"],
+                mode='markers+text',
+                text=province_sale["省份_std"],          # 直接显示省份名称
+                textposition="top center",               # 文字在气泡上方
+                textfont=dict(size=12, color="black"),
+                marker=dict(
+                    size=province_sale["万元"] / province_sale["万元"].max() * 50 + 10,  # 大小映射销售额
+                    color=province_sale["万元"],
+                    colorscale='Blues',
+                    showscale=True,
+                    colorbar=dict(title="销售额(万元)"),
+                    sizemode='area',
+                    sizeref=2.*max(province_sale["万元"])/(50**2),
+                    sizemin=4
+                ),
+                hoverinfo='text',
+                hovertext=province_sale.apply(lambda row: f"{row['省份_std']}<br>销售额: {row['万元']:.2f}万元", axis=1)
+            ))
+            
+            fig_map.update_layout(
+                title="全国省份销售额分布（气泡大小代表销售额，文字直接标注）",
+                geo=dict(
+                    scope='asia',
+                    center=dict(lat=35, lon=105),
+                    projection_scale=1.2,
+                    showland=True,
+                    landcolor='rgb(243,243,243)',
+                    countrycolor='rgb(204,204,204)',
+                    coastlinecolor='rgb(204,204,204)'
+                ),
+                margin={"r":0, "t":50, "l":0, "b":0},
+                height=700
+            )
+            st.plotly_chart(fig_map, use_container_width=True)
 
 # 明细核对
 with st.expander("📄 订单明细（核对总金额）"):
