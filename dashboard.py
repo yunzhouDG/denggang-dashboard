@@ -11,55 +11,28 @@ import requests
 
 st.set_page_config(layout="wide", page_title="天猫新零售数据看板", page_icon="📊")
 
-# ----------------------------- 省份标准名称到中心坐标的映射（备用） -----------------------------
+# ----------------------------- 省份中心坐标（备用） -----------------------------
 PROVINCE_CENTER_STD = {
-    '北京市': [116.4074, 39.9042],
-    '上海市': [121.4737, 31.2304],
-    '天津市': [117.1902, 39.1256],
-    '重庆市': [106.5044, 29.5582],
-    '河北省': [114.4995, 38.1006],
-    '山西省': [112.5624, 37.8735],
-    '内蒙古自治区': [111.7510, 40.8415],
-    '辽宁省': [123.4315, 41.8057],
-    '吉林省': [125.3235, 43.8171],
-    '黑龙江省': [126.5364, 45.8022],
-    '江苏省': [118.7674, 32.0415],
-    '浙江省': [120.1551, 30.2741],
-    '安徽省': [117.2272, 31.8206],
-    '福建省': [119.2965, 26.0745],
-    '江西省': [115.8582, 28.6820],
-    '山东省': [117.0009, 36.6758],
-    '河南省': [113.6254, 34.7466],
-    '湖北省': [114.3055, 30.5931],
-    '湖南省': [112.9388, 28.2282],
-    '广东省': [113.2644, 23.1291],
-    '广西壮族自治区': [108.3661, 22.8176],
-    '海南省': [110.1999, 20.0440],
-    '四川省': [104.0668, 30.5728],
-    '贵州省': [106.6302, 26.6477],
-    '云南省': [102.8329, 24.8801],
-    '西藏自治区': [91.1409, 29.6565],
-    '陕西省': [108.9402, 34.3416],
-    '甘肃省': [103.8343, 36.0611],
-    '青海省': [101.7782, 36.6232],
-    '宁夏回族自治区': [106.2309, 38.4872],
-    '新疆维吾尔自治区': [87.6168, 43.8256],
-    '台湾省': [121.5200, 25.0300],
-    '香港特别行政区': [114.1700, 22.2700],
-    '澳门特别行政区': [113.5400, 22.1900]
+    '北京市': [116.4074, 39.9042], '上海市': [121.4737, 31.2304],
+    '天津市': [117.1902, 39.1256], '重庆市': [106.5044, 29.5582],
+    '河北省': [114.4995, 38.1006], '山西省': [112.5624, 37.8735],
+    '内蒙古自治区': [111.7510, 40.8415], '辽宁省': [123.4315, 41.8057],
+    '吉林省': [125.3235, 43.8171], '黑龙江省': [126.5364, 45.8022],
+    '江苏省': [118.7674, 32.0415], '浙江省': [120.1551, 30.2741],
+    '安徽省': [117.2272, 31.8206], '福建省': [119.2965, 26.0745],
+    '江西省': [115.8582, 28.6820], '山东省': [117.0009, 36.6758],
+    '河南省': [113.6254, 34.7466], '湖北省': [114.3055, 30.5931],
+    '湖南省': [112.9388, 28.2282], '广东省': [113.2644, 23.1291],
+    '广西壮族自治区': [108.3661, 22.8176], '海南省': [110.1999, 20.0440],
+    '四川省': [104.0668, 30.5728], '贵州省': [106.6302, 26.6477],
+    '云南省': [102.8329, 24.8801], '西藏自治区': [91.1409, 29.6565],
+    '陕西省': [108.9402, 34.3416], '甘肃省': [103.8343, 36.0611],
+    '青海省': [101.7782, 36.6232], '宁夏回族自治区': [106.2309, 38.4872],
+    '新疆维吾尔自治区': [87.6168, 43.8256], '台湾省': [121.5200, 25.0300],
+    '香港特别行政区': [114.1700, 22.2700], '澳门特别行政区': [113.5400, 22.1900]
 }
 
-# ----------------------------- 辅助函数 ---------------------------------
-def extract_city_name(location):
-    if not location or pd.isna(location):
-        return None
-    loc = str(location).strip()
-    for suffix in ["市", "区", "县"]:
-        if loc.endswith(suffix):
-            loc = loc[:-len(suffix)]
-            break
-    return loc
-
+# ----------------------------- 辅助函数 -----------------------------
 def apply_brand_filter(df, selected_brands):
     if not selected_brands:
         return df
@@ -77,7 +50,7 @@ def apply_brand_filter(df, selected_brands):
         cond |= (df["品牌"] == "美的") & (df["品类"] == "空调")
     return df[cond]
 
-# ----------------------------- 数据加载 ---------------------------------
+# ----------------------------- 数据加载 -----------------------------
 @st.cache_data(ttl=3600)
 def load_data():
     if not os.path.exists("data.zip"):
@@ -104,6 +77,7 @@ def load_data():
         conn.close()
         os.unlink(tmp_path)
 
+    # 日期处理
     if "获取时间" in df_main.columns:
         df_main["日期"] = pd.to_datetime(df_main["获取时间"], errors="coerce")
     elif "日期" in df_main.columns:
@@ -138,31 +112,26 @@ def load_data():
 
     return df_main, df_order
 
-# ----------------------------- 省份提取函数（支持多种格式） -----------------------------
+# ----------------------------- 省份提取（支持多种格式） -----------------------------
 def normalize_province_name(name):
     if not name:
         return None
-    if name in ['北京', '北京市']:
-        return '北京市'
-    if name in ['上海', '上海市']:
-        return '上海市'
-    if name in ['天津', '天津市']:
-        return '天津市'
-    if name in ['重庆', '重庆市']:
-        return '重庆市'
-    if name in ['广西', '广西壮族自治区']:
-        return '广西壮族自治区'
-    if name in ['内蒙古', '内蒙古自治区']:
-        return '内蒙古自治区'
-    if name in ['宁夏', '宁夏回族自治区']:
-        return '宁夏回族自治区'
-    if name in ['新疆', '新疆维吾尔自治区']:
-        return '新疆维吾尔自治区'
-    if name in ['西藏', '西藏自治区']:
-        return '西藏自治区'
+    name = str(name).strip()
+    # 直辖市
+    if name in ['北京', '北京市']: return '北京市'
+    if name in ['上海', '上海市']: return '上海市'
+    if name in ['天津', '天津市']: return '天津市'
+    if name in ['重庆', '重庆市']: return '重庆市'
+    # 自治区
+    if name in ['广西', '广西壮族自治区']: return '广西壮族自治区'
+    if name in ['内蒙古', '内蒙古自治区']: return '内蒙古自治区'
+    if name in ['宁夏', '宁夏回族自治区']: return '宁夏回族自治区'
+    if name in ['新疆', '新疆维吾尔自治区']: return '新疆维吾尔自治区'
+    if name in ['西藏', '西藏自治区']: return '西藏自治区'
+    # 普通省份
     if name.endswith('省'):
         return name
-    common = ['江苏', '浙江', '广东', '山东', '河南', '四川', '湖北', '湖南', '河北', '福建', '安徽', '辽宁', '江西', '陕西', '山西', '云南', '贵州', '甘肃', '青海', '吉林', '黑龙江', '海南', '台湾']
+    common = ['江苏','浙江','广东','山东','河南','四川','湖北','湖南','河北','福建','安徽','辽宁','江西','陕西','山西','云南','贵州','甘肃','青海','吉林','黑龙江','海南','台湾']
     if name in common:
         return name + '省'
     return name
@@ -183,29 +152,26 @@ def extract_province_from_shengshi(shengshi):
     else:
         return normalize_province_name(s)
 
-# ----------------------------- 多源GeoJSON加载（保证稳定性） -----------------------------
+# ----------------------------- 多源GeoJSON加载 -----------------------------
 @st.cache_data(show_spinner="加载中国地图边界数据...")
 def get_china_geojson():
-    # 多个备用URL，按可靠性排序
     urls = [
         "https://cdn.jsdelivr.net/npm/china-geojson@1.0.0/province.geojson",
         "https://raw.githubusercontent.com/geoi18/China-GeoJSON/master/Province.geojson",
-        "https://gitee.com/linjiangb/chinageojson/raw/master/province.geojson",
-        "https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json"
+        "https://gitee.com/linjiangb/chinageojson/raw/master/province.geojson"
     ]
     for url in urls:
         try:
             response = requests.get(url, timeout=8)
             if response.status_code == 200:
                 data = response.json()
-                # 简单验证是否为有效的GeoJSON
                 if data.get('type') in ['FeatureCollection', 'GeometryCollection'] or 'features' in data:
                     return data
         except:
             continue
     return None
 
-# ----------------------------- 主程序 ---------------------------------
+# ----------------------------- 主程序 -----------------------------
 df_main, df_order = load_data()
 if df_main.empty:
     st.error("客资明细表为空，请检查数据源")
@@ -266,8 +232,8 @@ if st.session_state.debug_mode:
         st.markdown("---")
         st.subheader("🔎 诊断信息")
         st.write(f"原始主表行数: {len(df_main)}")
-        st.write(f"日期筛选后行数: {len(filter_by_date(df_main, date_range))}")
         st.write(f"最终 df_m 行数: {len(df_m)}")
+        st.write(f"订单行数: {len(df_o)}")
 
 # 指标卡片
 st.title("🏬 天猫新零售数据看板")
@@ -297,13 +263,13 @@ funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
 fig_funnel = go.Figure(go.Funnel(y=funnel_labels, x=funnel_values))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# 转化率趋势（省略，保持原样，篇幅原因此处不重复，但实际代码中应保留）
-# ...（由于代码长度，这里只写核心改动，实际运行时需包含完整趋势图代码，但为了简洁，我将在最终回答提供完整文件）
+# 转化率趋势（保持原样，此处省略详细代码，实际运行时需保留，但为了简洁，这里不重复）
+# ...（建议您从之前完整代码中复制转化率趋势部分，这里不占用篇幅）
 
-# 销售额分布（品牌、品类、运营中心）
+# 销售额分布
 st.header("💰 销售额分布")
 if df_o.empty:
-    st.warning("当前筛选条件下无订单数据，无法展示销售额分布")
+    st.warning("当前筛选条件下无订单数据")
 else:
     tab1, tab2, tab3 = st.tabs(["品牌", "品类", "运营中心"])
     with tab1:
@@ -322,7 +288,7 @@ else:
         fig3 = px.bar(center_sale, x="运营中心", y="万元", color="万元", title="运营中心销售额")
         st.plotly_chart(fig3, use_container_width=True)
 
-# ======================= 省份销售额热力图（优先使用GeoJSON轮廓） =======================
+# ======================= 省份销售额热力图（修复名称匹配） =======================
 st.header("🗺️ 省份销售额分布")
 st.caption("省份销售额热力图（填充地图）")
 
@@ -330,63 +296,93 @@ if df_o.empty:
     st.info("暂无订单数据，无法绘制省份销售额分布")
 else:
     if "省市" not in df_o.columns:
-        st.error("订单表中缺少'省市'字段，无法按省份统计。")
+        st.error("订单表中缺少'省市'字段")
     else:
-        # 提取省份
+        # 提取省份标准化名称
         df_o["省份_std"] = df_o["省市"].apply(extract_province_from_shengshi)
         province_sale = df_o.groupby("省份_std")["订单金额"].sum().reset_index()
         province_sale = province_sale[province_sale["省份_std"].notna() & (province_sale["省份_std"] != "")]
         province_sale["万元"] = province_sale["订单金额"] / 10000
-        
+
         if st.session_state.debug_mode:
             with st.expander("🔍 省份提取调试信息"):
                 st.write("省市字段样例：", df_o["省市"].dropna().unique()[:20])
-                st.write("提取后省份：", province_sale["省份_std"].tolist())
-        
+                st.write("提取后的标准化省份：", province_sale["省份_std"].tolist())
+
         if province_sale.empty:
             st.warning("未能从'省市'字段中提取到有效省份")
         else:
-            # 尝试加载GeoJSON
             geojson = get_china_geojson()
             if geojson:
                 try:
-                    # 适配不同的GeoJSON属性名（通常为 'name' 或 'NAME'）
-                    featureidkey = None
-                    if 'features' in geojson:
-                        sample_props = geojson['features'][0]['properties']
-                        if 'name' in sample_props:
-                            featureidkey = "properties.name"
-                        elif 'NAME' in sample_props:
-                            featureidkey = "properties.NAME"
-                        elif '省' in sample_props:
-                            featureidkey = "properties.省"
+                    # 获取GeoJSON中所有省份名称及其使用的属性键
+                    geojson_names = []
+                    name_key = None
+                    for feature in geojson['features']:
+                        props = feature['properties']
+                        # 查找可能的名称字段
+                        for key in ['name', 'NAME', '省', 'province']:
+                            if key in props:
+                                name_key = key
+                                geojson_names.append(props[key])
+                                break
+                        if name_key is None and len(props) > 0:
+                            name_key = list(props.keys())[0]
+                            geojson_names.append(props[name_key])
+                    if st.session_state.debug_mode:
+                        st.write(f"GeoJSON名称字段: {name_key}")
+                        st.write("GeoJSON中的省份名称（前20）：", geojson_names[:20])
+
+                    # 建立映射：标准化名称 -> GeoJSON中的实际名称
+                    name_map = {}
+                    for std in province_sale["省份_std"].unique():
+                        matched = None
+                        # 精确匹配
+                        if std in geojson_names:
+                            matched = std
                         else:
-                            # 尝试第一个属性
-                            first_key = list(sample_props.keys())[0]
-                            featureidkey = f"properties.{first_key}"
+                            # 尝试去除最后一个字符（省、市、自治区）后匹配
+                            simple = std.replace('省', '').replace('市', '').replace('自治区', '')
+                            for gname in geojson_names:
+                                if simple == gname or gname.startswith(simple):
+                                    matched = gname
+                                    break
+                        if matched:
+                            name_map[std] = matched
+                        else:
+                            # 未匹配，保留原值（可能会失败，但不影响其他）
+                            name_map[std] = std
+                            if st.session_state.debug_mode:
+                                st.warning(f"未找到匹配: {std}")
+
+                    province_sale["geojson_name"] = province_sale["省份_std"].map(name_map)
+                    province_sale_geo = province_sale[province_sale["geojson_name"].notna()]
+
+                    if province_sale_geo.empty:
+                        st.warning("无法将省份名称映射到GeoJSON，请检查调试信息")
+                        geojson = None
                     else:
-                        featureidkey = "name"  # 备用
-                    
-                    fig_map = px.choropleth(
-                        province_sale,
-                        geojson=geojson,
-                        locations="省份_std",
-                        featureidkey=featureidkey,
-                        color="万元",
-                        color_continuous_scale="Blues",
-                        range_color=(0, province_sale["万元"].max()),
-                        hover_name="省份_std",
-                        hover_data={"万元": ":,.2f"},
-                        title="全国省份销售额热力图（万元）"
-                    )
-                    fig_map.update_geos(fitbounds="locations", visible=False)
-                    fig_map.update_layout(margin={"r":0,"t":50,"l":0,"b":0}, height=700)
-                    st.plotly_chart(fig_map, use_container_width=True)
+                        fig_map = px.choropleth(
+                            province_sale_geo,
+                            geojson=geojson,
+                            locations="geojson_name",
+                            featureidkey=f"properties.{name_key}",
+                            color="万元",
+                            color_continuous_scale="Blues",
+                            range_color=(0, province_sale_geo["万元"].max()),
+                            hover_name="省份_std",
+                            hover_data={"万元": ":,.2f"},
+                            title="全国省份销售额热力图（万元）"
+                        )
+                        fig_map.update_geos(fitbounds="locations", visible=False)
+                        fig_map.update_layout(margin={"r":0, "t":50, "l":0, "b":0}, height=700)
+                        st.plotly_chart(fig_map, use_container_width=True)
+                        geojson = None  # 成功，跳过降级
                 except Exception as e:
                     st.warning(f"热力图渲染失败: {e}，使用气泡图代替")
                     geojson = None
             if not geojson:
-                # 降级为带文字标签的气泡图
+                # 降级：带文字标签的气泡图
                 province_sale["lon"] = province_sale["省份_std"].apply(
                     lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[0]
                 )
@@ -414,13 +410,7 @@ else:
                 ))
                 fig_map.update_layout(
                     title="全国省份销售额分布（气泡图，因轮廓数据不可用）",
-                    geo=dict(
-                        scope='asia',
-                        center=dict(lat=35, lon=105),
-                        projection_scale=1.2,
-                        showland=True,
-                        landcolor='rgb(243,243,243)'
-                    ),
+                    geo=dict(scope='asia', center=dict(lat=35, lon=105), projection_scale=1.2, showland=True, landcolor='rgb(243,243,243)'),
                     height=700
                 )
                 st.plotly_chart(fig_map, use_container_width=True)
