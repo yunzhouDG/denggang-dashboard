@@ -44,14 +44,14 @@ PROVINCE_CENTER_STD = {
     '青海省': [101.7782, 36.6232],
     '宁夏回族自治区': [106.2309, 38.4872],
     '新疆维吾尔自治区': [87.6168, 43.8256],
-    '台湾省': [121.5200, 25.0300],   # 如果有数据
+    '台湾省': [121.5200, 25.0300],
     '香港特别行政区': [114.1700, 22.2700],
     '澳门特别行政区': [113.5400, 22.1900]
 }
 
 # ----------------------------- 辅助函数 ---------------------------------
 def extract_city_name(location):
-    """（保留原函数，但省份分布不再使用）"""
+    """保留原函数（未使用）"""
     if not location or pd.isna(location):
         return None
     loc = str(location).strip()
@@ -59,7 +59,6 @@ def extract_city_name(location):
         if loc.endswith(suffix):
             loc = loc[:-len(suffix)]
             break
-    # 直辖市辖区处理（简化）
     return loc
 
 def apply_brand_filter(df, selected_brands):
@@ -142,39 +141,64 @@ def load_data():
 
     return df_main, df_order
 
-# ----------------------------- 省份提取函数（基于"省市"字段） -----------------------------
+# ----------------------------- 省份提取函数（增强版，支持"云南省-昆明市"和"前缀-省份-城市"） -----------------------------
+def normalize_province_name(name):
+    """将原始名称标准化为省份全称（如'云南'->'云南省'，'广东'->'广东省'）"""
+    if not name:
+        return None
+    # 直辖市
+    if name in ['北京', '北京市']:
+        return '北京市'
+    if name in ['上海', '上海市']:
+        return '上海市'
+    if name in ['天津', '天津市']:
+        return '天津市'
+    if name in ['重庆', '重庆市']:
+        return '重庆市'
+    # 自治区
+    if name in ['广西', '广西壮族自治区']:
+        return '广西壮族自治区'
+    if name in ['内蒙古', '内蒙古自治区']:
+        return '内蒙古自治区'
+    if name in ['宁夏', '宁夏回族自治区']:
+        return '宁夏回族自治区'
+    if name in ['新疆', '新疆维吾尔自治区']:
+        return '新疆维吾尔自治区'
+    if name in ['西藏', '西藏自治区']:
+        return '西藏自治区'
+    # 普通省份：如果已以'省'结尾，直接返回
+    if name.endswith('省'):
+        return name
+    # 常见缺省字
+    common_provinces = ['江苏', '浙江', '广东', '山东', '河南', '四川', '湖北', '湖南', '河北', '福建', '安徽', '辽宁', '江西', '陕西', '山西', '云南', '贵州', '甘肃', '青海', '吉林', '黑龙江', '海南', '台湾']
+    if name in common_provinces:
+        return name + '省'
+    # 其他原样返回
+    return name
+
 def extract_province_from_shengshi(shengshi):
+    """从订单表的'省市'字段提取省份标准名称，支持格式：
+       '云南省-昆明市'  -> '云南省'
+       '天猫新零售(厨热)-广东省-惠州市' -> '广东省'
+    """
     if pd.isna(shengshi) or not shengshi:
         return None
     s = str(shengshi).strip()
-    # 直辖市标准化
-    if s in ['北京', '北京市', '北京直辖市']:
-        return '北京市'
-    if s in ['上海', '上海市', '上海直辖市']:
-        return '上海市'
-    if s in ['天津', '天津市', '天津直辖市']:
-        return '天津市'
-    if s in ['重庆', '重庆市', '重庆直辖市']:
-        return '重庆市'
-    # 普通省份带"省"
-    if s.endswith('省'):
-        return s
-    # 常见缺省字的情况
-    common = ['江苏', '浙江', '广东', '山东', '河南', '四川', '湖北', '湖南', '河北', '福建', '安徽', '辽宁', '江西', '陕西', '山西', '云南', '贵州', '甘肃', '青海', '吉林', '黑龙江', '海南', '台湾']
-    if s in common:
-        return s + '省'
-    # 自治区
-    if s in ['广西', '广西壮族自治区']:
-        return '广西壮族自治区'
-    if s in ['内蒙古', '内蒙古自治区']:
-        return '内蒙古自治区'
-    if s in ['宁夏', '宁夏回族自治区']:
-        return '宁夏回族自治区'
-    if s in ['新疆', '新疆维吾尔自治区']:
-        return '新疆维吾尔自治区'
-    if s in ['西藏', '西藏自治区']:
-        return '西藏自治区'
-    return s  # 其他原样返回
+    # 如果包含分隔符 '-'
+    if '-' in s:
+        parts = s.split('-')
+        # 根据长度选择候选部分
+        if len(parts) == 2:
+            candidate = parts[0]
+        elif len(parts) >= 3:
+            # 通常第二部分是省份（如示例）
+            candidate = parts[1]
+        else:
+            candidate = parts[0]
+        # 标准化候选字符串
+        return normalize_province_name(candidate)
+    else:
+        return normalize_province_name(s)
 
 # 加载中国GeoJSON
 @st.cache_data(show_spinner="加载中国地图数据...")
@@ -369,7 +393,7 @@ else:
         fig3 = px.bar(center_sale, x="运营中心", y="万元", color="万元", title="运营中心销售额")
         st.plotly_chart(fig3, use_container_width=True)
 
-# ======================= 省份销售额分布（直接使用"省市"字段，热力图优先） =======================
+# ======================= 省份销售额分布（直接使用"省市"字段，增强提取逻辑） =======================
 st.header("🗺️ 省份销售额分布")
 st.caption("省份销售额热力图（填充地图）")
 
@@ -403,7 +427,7 @@ else:
                         province_sale,
                         geojson=china_geojson,
                         locations="省份_std",
-                        featureidkey="properties.name",  # 根据实际 GeoJSON 调整
+                        featureidkey="properties.name",
                         color="万元",
                         color_continuous_scale="Blues",
                         range_color=(0, province_sale["万元"].max()),
@@ -416,10 +440,9 @@ else:
                     st.plotly_chart(fig_map, use_container_width=True)
                 except Exception as e:
                     st.warning(f"热力图渲染失败: {e}，将使用气泡图代替")
-                    china_geojson = None  # 降级
+                    china_geojson = None
             if not china_geojson:
-                # 降级方案：气泡地图（使用 PROVINCE_CENTER_STD 字典）
-                # 为省份添加中心坐标
+                # 降级方案：气泡地图
                 province_sale["lon"] = province_sale["省份_std"].apply(
                     lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[0]
                 )
@@ -446,7 +469,6 @@ else:
 # 明细核对
 with st.expander("📄 订单明细（核对总金额）"):
     if not df_o.empty:
-        # 显示可用列
         cols_to_show = [c for c in ["日期", "品牌", "品类", "运营中心", "市区", "省市", "订单金额"] if c in df_o.columns]
         st.dataframe(df_o[cols_to_show], use_container_width=True)
         st.success(f"✅ 订单总金额：{total_amount:,.2f} 元  =  {total_wan:.2f} 万元")
