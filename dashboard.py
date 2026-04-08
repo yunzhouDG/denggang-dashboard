@@ -231,7 +231,7 @@ c2.metric("有效客资", f"{valid_leads:,}")
 c3.metric("成交单量", f"{order_count:,}")
 c4.metric("总金额（万元）", f"{total_wan:.2f}")
 
-# 转化漏斗
+# 转化漏斗（修改后：每个阶段不同颜色，数值完整显示）
 st.header("📉 转化漏斗")
 if "最新跟进状态" in df_m.columns and not df_m.empty:
     assigned = df_m[valid_mask & (df_m["最新跟进状态"] != "未分配")].shape[0]
@@ -239,9 +239,20 @@ if "最新跟进状态" in df_m.columns and not df_m.empty:
 else:
     assigned = 0
     followed = 0
+
 funnel_labels = ["总客资", "有效客资", "已分配", "已跟进", "成交"]
 funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
-fig_funnel = go.Figure(go.Funnel(y=funnel_labels, x=funnel_values))
+# 自定义颜色
+colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+fig_funnel = go.Figure(go.Funnel(
+    y=funnel_labels,
+    x=funnel_values,
+    marker=dict(color=colors),
+    textinfo="value",
+    texttemplate='%{value:,.0f}',
+    textposition="inside",
+    connector=dict(line=dict(color="grey", width=2))
+))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
 # 转化率趋势
