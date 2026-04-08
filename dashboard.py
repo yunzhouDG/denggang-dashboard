@@ -11,6 +11,44 @@ import requests
 
 st.set_page_config(layout="wide", page_title="天猫新零售数据看板", page_icon="📊")
 
+# ----------------------------- 省份标准名称到中心坐标的映射（用于气泡地图降级） -----------------------------
+PROVINCE_CENTER_STD = {
+    '北京市': [116.4074, 39.9042],
+    '上海市': [121.4737, 31.2304],
+    '天津市': [117.1902, 39.1256],
+    '重庆市': [106.5044, 29.5582],
+    '河北省': [114.4995, 38.1006],
+    '山西省': [112.5624, 37.8735],
+    '内蒙古自治区': [111.7510, 40.8415],
+    '辽宁省': [123.4315, 41.8057],
+    '吉林省': [125.3235, 43.8171],
+    '黑龙江省': [126.5364, 45.8022],
+    '江苏省': [118.7674, 32.0415],
+    '浙江省': [120.1551, 30.2741],
+    '安徽省': [117.2272, 31.8206],
+    '福建省': [119.2965, 26.0745],
+    '江西省': [115.8582, 28.6820],
+    '山东省': [117.0009, 36.6758],
+    '河南省': [113.6254, 34.7466],
+    '湖北省': [114.3055, 30.5931],
+    '湖南省': [112.9388, 28.2282],
+    '广东省': [113.2644, 23.1291],
+    '广西壮族自治区': [108.3661, 22.8176],
+    '海南省': [110.1999, 20.0440],
+    '四川省': [104.0668, 30.5728],
+    '贵州省': [106.6302, 26.6477],
+    '云南省': [102.8329, 24.8801],
+    '西藏自治区': [91.1409, 29.6565],
+    '陕西省': [108.9402, 34.3416],
+    '甘肃省': [103.8343, 36.0611],
+    '青海省': [101.7782, 36.6232],
+    '宁夏回族自治区': [106.2309, 38.4872],
+    '新疆维吾尔自治区': [87.6168, 43.8256],
+    '台湾省': [121.5200, 25.0300],   # 如果有数据
+    '香港特别行政区': [114.1700, 22.2700],
+    '澳门特别行政区': [113.5400, 22.1900]
+}
+
 # ----------------------------- 辅助函数 ---------------------------------
 def extract_city_name(location):
     """（保留原函数，但省份分布不再使用）"""
@@ -21,7 +59,7 @@ def extract_city_name(location):
         if loc.endswith(suffix):
             loc = loc[:-len(suffix)]
             break
-    # 直辖市辖区处理略（可保留原代码）
+    # 直辖市辖区处理（简化）
     return loc
 
 def apply_brand_filter(df, selected_brands):
@@ -331,7 +369,7 @@ else:
         fig3 = px.bar(center_sale, x="运营中心", y="万元", color="万元", title="运营中心销售额")
         st.plotly_chart(fig3, use_container_width=True)
 
-# ======================= 修改后的省份销售额分布（直接使用"省市"字段，热力图优先） =======================
+# ======================= 省份销售额分布（直接使用"省市"字段，热力图优先） =======================
 st.header("🗺️ 省份销售额分布")
 st.caption("省份销售额热力图（填充地图）")
 
@@ -380,28 +418,14 @@ else:
                     st.warning(f"热力图渲染失败: {e}，将使用气泡图代替")
                     china_geojson = None  # 降级
             if not china_geojson:
-                # 降级方案：气泡地图
+                # 降级方案：气泡地图（使用 PROVINCE_CENTER_STD 字典）
                 # 为省份添加中心坐标
-                province_coords = []
-                for prov in province_sale["省份_std"]:
-                    # 映射省份简称到中心坐标（需要简化名称）
-                    simple_name = prov.replace('省', '').replace('市', '').replace('自治区', '')
-                    if simple_name in ['北京', '上海', '天津', '重庆']:
-                        simple_name = simple_name + '市'
-                    elif simple_name == '广西':
-                        simple_name = '广西'
-                    elif simple_name == '内蒙古':
-                        simple_name = '内蒙古'
-                    elif simple_name == '宁夏':
-                        simple_name = '宁夏'
-                    elif simple_name == '新疆':
-                        simple_name = '新疆'
-                    elif simple_name == '西藏':
-                        simple_name = '西藏'
-                    coords = PROVINCE_CENTER.get(simple_name, [116.4074, 39.9042])
-                    province_coords.append(coords)
-                province_sale["lon"] = [c[0] for c in province_coords]
-                province_sale["lat"] = [c[1] for c in province_coords]
+                province_sale["lon"] = province_sale["省份_std"].apply(
+                    lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[0]
+                )
+                province_sale["lat"] = province_sale["省份_std"].apply(
+                    lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[1]
+                )
                 fig_map = px.scatter_geo(
                     province_sale,
                     lon="lon", lat="lat",
@@ -422,7 +446,9 @@ else:
 # 明细核对
 with st.expander("📄 订单明细（核对总金额）"):
     if not df_o.empty:
-        st.dataframe(df_o[["日期", "品牌", "品类", "运营中心", "市区", "省市", "订单金额"]], use_container_width=True)
+        # 显示可用列
+        cols_to_show = [c for c in ["日期", "品牌", "品类", "运营中心", "市区", "省市", "订单金额"] if c in df_o.columns]
+        st.dataframe(df_o[cols_to_show], use_container_width=True)
         st.success(f"✅ 订单总金额：{total_amount:,.2f} 元  =  {total_wan:.2f} 万元")
     else:
         st.info("无订单明细")
