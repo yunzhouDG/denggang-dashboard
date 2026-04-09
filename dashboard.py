@@ -64,26 +64,22 @@ PROVINCE_CENTER_STD = {
     '香港特别行政区': [114.1700, 22.2700], '澳门特别行政区': [113.5400, 22.1900]
 }
 
-# ----------------------------- 品牌标准化（强化东芝匹配） -----------------------------
+# ----------------------------- 品牌标准化 -----------------------------
 def standardize_brand(brand_val):
     if pd.isna(brand_val):
         return "未知"
     s = str(brand_val).strip().lower()
-    # 小天鹅
     if '小天鹅' in s or 'swan' in s:
         return "小天鹅"
-    # 东芝：匹配 东芝、toshiba、东芝洗衣机、东芝冰箱等
     if '东芝' in s or 'toshiba' in s:
         return "东芝"
-    # COLMO
     if 'colmo' in s or '科摩' in s:
         return "colmo"
-    # 美的
     if '美的' in s or 'midea' in s:
         return "美的"
     return brand_val
 
-# ----------------------------- 辅助函数 -----------------------------
+# ----------------------------- 品牌筛选函数 -----------------------------
 def apply_brand_filter(df, selected_brands):
     if not selected_brands:
         return df
@@ -154,7 +150,6 @@ def load_data():
         df["运营中心"] = df.get("运营中心", df.get("运中", "未知")).fillna("未知")
         df["片区"] = df.get("片区", "未知").fillna("未知")
     
-    # 补全缺失列
     if "外呼状态" not in df_main.columns:
         df_main["外呼状态"] = ""
     if "最新跟进状态" not in df_main.columns:
@@ -210,7 +205,9 @@ if "debug_mode" not in st.session_state:
 with st.sidebar:
     st.session_state.debug_mode = st.checkbox("🔧 调试模式", value=False)
 
-actual_brands = sorted([b for b in df_main["品牌"].dropna().unique() if b and b != "未知"])
+# ========== 关键修改：合并主表和订单表的品牌作为默认选项 ==========
+all_brands = set(df_main["品牌"].dropna().unique()) | set(df_order["品牌"].dropna().unique())
+actual_brands = sorted([b for b in all_brands if b and b != "未知"])
 actual_cats = sorted([c for c in df_main["品类"].dropna().unique() if c and c != "未知"])
 actual_centers = sorted([c for c in df_main["运营中心"].dropna().unique() if c and c != "未知"])
 actual_areas = sorted([a for a in df_main["片区"].dropna().unique() if a and a != "未知"])
@@ -255,7 +252,6 @@ if sel_cat:
 if sel_center:
     df_o = df_o[df_o["运营中心"].isin(sel_center)]
 
-# 调试模式下输出东芝金额详情
 if st.session_state.debug_mode:
     with st.sidebar:
         st.markdown("---")
@@ -266,8 +262,7 @@ if st.session_state.debug_mode:
         toshiba_amount = df_o[df_o["品牌"] == "东芝"]["订单金额"].sum()
         st.write(f"东芝订单总额（调试）：{toshiba_amount:.2f} 元")
         if toshiba_amount != 296892:
-            st.warning(f"⚠️ 东芝金额应为 296892 元，实际为 {toshiba_amount:.2f} 元，请检查原始数据")
-            # 显示东芝订单明细
+            st.warning(f"⚠️ 东芝金额应为 296892 元，实际为 {toshiba_amount:.2f} 元")
             toshiba_orders = df_o[df_o["品牌"] == "东芝"][["日期", "订单金额", "品类", "运营中心"]]
             st.dataframe(toshiba_orders)
 
