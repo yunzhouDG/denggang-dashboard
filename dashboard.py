@@ -1,7 +1,4 @@
-
-# 生成完整的修正版 Streamlit 代码
-
-complete_code = '''import streamlit as st
+import streamlit as st
 import pandas as pd
 import sqlite3
 import zipfile
@@ -43,9 +40,6 @@ st.markdown("""
     .stDataFrame { border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     .stButton button { border-radius: 30px; background-color: #3b82f6; color: white; border: none; font-weight: 500; }
     .stButton button:hover { background-color: #2563eb; transform: scale(1.02); }
-    /* 调试信息样式 */
-    .debug-info { background-color: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; padding: 10px; margin: 5px 0; }
-    .debug-warning { background-color: #fffbeb; border: 1px solid #f59e0b; border-radius: 8px; padding: 10px; margin: 5px 0; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -70,84 +64,37 @@ PROVINCE_CENTER_STD = {
     '香港特别行政区': [114.1700, 22.2700], '澳门特别行政区': [113.5400, 22.1900]
 }
 
-# ----------------------------- 【修正1】增强品牌标准化 -----------------------------
+# ----------------------------- 品牌标准化 -----------------------------
 def standardize_brand(brand_val):
-    """
-    增强版品牌标准化函数
-    处理各种变体：空格、大小写、特殊字符、中英文混合
-    """
     if pd.isna(brand_val):
         return "未知"
-    
-    # 转换为字符串并清理
-    s = str(brand_val).strip()
-    
-    # 保存原始值用于调试
-    original = s
-    
-    # 统一转换为小写并去除多余空格
-    s_lower = s.lower().replace(' ', '').replace('　', '').replace('\\t', '').replace('\\n', '')
-    
-    # 东芝品牌匹配（增强版）
-    toshiba_patterns = ['东芝', 'toshiba', '東芝', 'とうしば', 'touhiba']
-    if any(pattern in s_lower for pattern in toshiba_patterns):
-        return "东芝"
-    
-    # 小天鹅品牌匹配
-    swan_patterns = ['小天鹅', 'swan', 'littleswan', 'little_swan']
-    if any(pattern in s_lower for pattern in swan_patterns):
+    s = str(brand_val).strip().lower()
+    if '小天鹅' in s or 'swan' in s:
         return "小天鹅"
-    
-    # COLMO品牌匹配
-    colmo_patterns = ['colmo', '科摩', 'colm0', 'c0lmo']
-    if any(pattern in s_lower for pattern in colmo_patterns):
-        return "COLMO"
-    
-    # 美的品牌匹配（排除其他已匹配的品牌后）
-    midea_patterns = ['美的', 'midea', 'midia', 'midea']
-    if any(pattern in s_lower for pattern in midea_patterns):
-        # 再次确认不是其他品牌
-        if not any(p in s_lower for p in toshiba_patterns + swan_patterns + colmo_patterns):
-            return "美的"
-    
-    # 如果无法识别，返回清理后的原始值
-    return s
+    if '东芝' in s or 'toshiba' in s:
+        return "东芝"
+    if 'colmo' in s or '科摩' in s:
+        return "colmo"
+    if '美的' in s or 'midea' in s:
+        return "美的"
+    return brand_val
 
-# ----------------------------- 【修正2】增强品牌筛选函数 -----------------------------
-def apply_brand_filter(df, selected_brands):
-    """
-    增强版品牌筛选逻辑
-    支持汇总选项和精确匹配
-    """
-    if not selected_brands:
+# ----------------------------- 品牌筛选函数 -----------------------------
+def apply_brand_filter(df, selected_brands, ignore_filter=False):
+    if ignore_filter or not selected_brands:
         return df
-    
-    # 创建空条件
     cond = pd.Series(False, index=df.index)
-    
-    # 处理普通品牌（非汇总项）
     normal_brands = [b for b in selected_brands if b not in ["洗衣机汇总", "美的厨热", "美的冰箱", "美的空调"]]
-    
     if normal_brands:
-        # 使用精确匹配，确保大小写一致
-        cond |= df["品牌"].isin([b.strip() for b in normal_brands])
-    
-    # 处理汇总选项
+        cond |= df["品牌"].isin(normal_brands)
     if "洗衣机汇总" in selected_brands:
-        # 小天鹅 或 (美的 且 洗衣机品类)
-        washing_machine_cond = (df["品牌"] == "东芝")  # 注意：这里应该是小天鹅，修正如下
-        washing_machine_cond = (df["品牌"] == "小天鹅") | ((df["品牌"] == "美的") & (df["品类"] == "洗衣机"))
-        cond |= washing_machine_cond
-    
+        cond |= (df["品牌"] == "小天鹅") | ((df["品牌"] == "美的") & (df["品类"] == "洗衣机"))
     if "美的厨热" in selected_brands:
         cond |= (df["品牌"] == "美的") & (df["品类"] == "厨热")
-    
     if "美的冰箱" in selected_brands:
         cond |= (df["品牌"] == "美的") & (df["品类"] == "冰箱")
-    
     if "美的空调" in selected_brands:
         cond |= (df["品牌"] == "美的") & (df["品类"] == "空调")
-    
     return df[cond]
 
 # ----------------------------- 数据加载 -----------------------------
@@ -156,7 +103,6 @@ def load_data():
     if not os.path.exists("data.zip"):
         st.error("❌ 未找到 data.zip 文件，请将数据文件放在应用同目录下")
         st.stop()
-    
     with zipfile.ZipFile("data.zip", "r") as zf:
         db_files = [f for f in zf.namelist() if f.endswith(".db")]
         if not db_files:
@@ -191,41 +137,19 @@ def load_data():
     else:
         df_order["日期"] = pd.NaT
 
-    # 【修正3】增强订单金额处理
     if "订单金额" in df_order.columns:
-        # 先查看原始数据类型和样本
-        df_order["订单金额_原始"] = df_order["订单金额"]  # 保留原始值用于调试
-        df_order["订单金额"] = pd.to_numeric(df_order["订单金额"], errors="coerce")
-        # 检查有多少NaN值
-        nan_count = df_order["订单金额"].isna().sum()
-        if nan_count > 0:
-            st.warning(f"订单金额中有 {nan_count} 个无效值被设为0")
-        df_order["订单金额"] = df_order["订单金额"].fillna(0)
+        df_order["订单金额"] = pd.to_numeric(df_order["订单金额"], errors="coerce").fillna(0)
     else:
         df_order["订单金额"] = 0.0
 
-    # 【修正4】统一品牌列并标准化（增强版）
+    # 统一品牌列并标准化
     for df in [df_main, df_order]:
-        # 确定原始品牌列
-        if "品牌" in df.columns:
-            raw_brand = df["品牌"].fillna("未知")
-        elif "意向品牌" in df.columns:
-            raw_brand = df["意向品牌"].fillna("未知")
-        else:
-            raw_brand = pd.Series(["未知"] * len(df), index=df.index)
-        
-        # 保存原始品牌用于调试
-        df["品牌_原始"] = raw_brand
-        
-        # 应用标准化
+        raw_brand = df.get("品牌", df.get("意向品牌", "未知")).fillna("未知")
         df["品牌"] = raw_brand.apply(standardize_brand)
-        
-        # 处理其他字段
         df["品类"] = df.get("品类", "未知").fillna("未知")
         df["运营中心"] = df.get("运营中心", df.get("运中", "未知")).fillna("未知")
         df["片区"] = df.get("片区", "未知").fillna("未知")
     
-    # 确保其他必要字段存在
     if "外呼状态" not in df_main.columns:
         df_main["外呼状态"] = ""
     if "最新跟进状态" not in df_main.columns:
@@ -233,6 +157,7 @@ def load_data():
     if "市区" not in df_order.columns:
         df_order["市区"] = ""
     if "省市" not in df_order.columns:
+        st.warning("订单表中缺少'省市'字段，无法绘制省份地图")
         df_order["省市"] = ""
 
     return df_main, df_order
@@ -275,39 +200,16 @@ if df_main.empty:
     st.error("客资明细表为空，请检查数据源")
     st.stop()
 
-# 初始化调试模式
 if "debug_mode" not in st.session_state:
     st.session_state.debug_mode = False
+if "ignore_all_filters" not in st.session_state:
+    st.session_state.ignore_all_filters = False
 
 with st.sidebar:
     st.session_state.debug_mode = st.checkbox("🔧 调试模式", value=False)
-    
-    # 【修正5】增强调试面板 - 显示品牌标准化详情
-    if st.session_state.debug_mode:
-        st.markdown("---")
-        st.subheader("🔍 品牌标准化诊断")
-        
-        # 显示原始品牌分布（订单表）
-        st.markdown("**原始品牌分布（前20）：**")
-        if "品牌_原始" in df_order.columns:
-            orig_counts = df_order["品牌_原始"].value_counts().head(20)
-            st.write(orig_counts)
-        
-        # 显示标准化后品牌分布
-        st.markdown("**标准化后品牌分布：**")
-        std_counts = df_order["品牌"].value_counts()
-        st.write(std_counts)
-        
-        # 专门检查东芝
-        st.markdown("**东芝品牌详细检查：**")
-        toshiba_original = df_order[df_order["品牌"] == "东芝"]["品牌_原始"].unique() if "品牌_原始" in df_order.columns else []
-        st.write(f"被识别为'东芝'的原始品牌值: {list(toshiba_original)}")
-        
-        # 检查是否有可能遗漏的东芝变体
-        potential_toshiba = df_order[df_order["品牌_原始"].str.contains('东|芝|toshiba|東芝', case=False, na=False)]["品牌_原始"].unique() if "品牌_原始" in df_order.columns else []
-        st.write(f"包含'东/芝/toshiba'的原始值: {list(potential_toshiba)}")
+    st.session_state.ignore_all_filters = st.checkbox("🔓 忽略所有筛选（仅用于调试东芝金额）", value=False)
 
-# ========== 关键修改：合并主表和订单表的品牌作为默认选项 ==========
+# 合并主表和订单表的品牌作为默认选项（确保东芝出现）
 all_brands = set(df_main["品牌"].dropna().unique()) | set(df_order["品牌"].dropna().unique())
 actual_brands = sorted([b for b in all_brands if b and b != "未知"])
 actual_cats = sorted([c for c in df_main["品类"].dropna().unique() if c and c != "未知"])
@@ -332,87 +234,57 @@ with col2_s:
     sel_area = st.multiselect("🗺️ 片区", actual_areas, default=actual_areas)
     sel_center = st.multiselect("📍 运营中心", actual_centers, default=actual_centers)
 
-def filter_by_date(df, date_range):
-    if "日期" not in df.columns or df["日期"].isna().all():
+def filter_by_date(df, date_range, ignore=False):
+    if ignore or "日期" not in df.columns or df["日期"].isna().all():
         return df
     d_start, d_end = date_range
     return df[(df["日期"].dt.date >= d_start) & (df["日期"].dt.date <= d_end)]
 
-# 【修正6】应用筛选并记录调试信息
-df_m = filter_by_date(df_main, date_range)
-df_m_original_count = len(df_m)
-df_m = apply_brand_filter(df_m, sel_brand)
-if sel_cat:
+ignore = st.session_state.ignore_all_filters
+df_m = filter_by_date(df_main, date_range, ignore)
+df_m = apply_brand_filter(df_m, sel_brand, ignore)
+if not ignore and sel_cat:
     df_m = df_m[df_m["品类"].isin(sel_cat)]
-if sel_center:
+if not ignore and sel_center:
     df_m = df_m[df_m["运营中心"].isin(sel_center)]
-if sel_area:
+if not ignore and sel_area:
     df_m = df_m[df_m["片区"].isin(sel_area)]
 
-df_o = filter_by_date(df_order, date_range)
-df_o_original_count = len(df_o)
-df_o = apply_brand_filter(df_o, sel_brand)
-if sel_cat:
+df_o = filter_by_date(df_order, date_range, ignore)
+df_o = apply_brand_filter(df_o, sel_brand, ignore)
+if not ignore and sel_cat:
     df_o = df_o[df_o["品类"].isin(sel_cat)]
-if sel_center:
+if not ignore and sel_center:
     df_o = df_o[df_o["运营中心"].isin(sel_center)]
 
-# 【修正7】增强调试信息 - 东芝金额详细诊断
+# 调试输出
 if st.session_state.debug_mode:
     with st.sidebar:
         st.markdown("---")
-        st.subheader("🔎 筛选诊断信息")
-        
-        # 基础统计
+        st.subheader("🔎 诊断信息")
         st.write(f"原始主表行数: {len(df_main)}")
-        st.write(f"日期筛选后主表: {df_m_original_count}")
         st.write(f"最终 df_m 行数: {len(df_m)}")
-        st.write(f"原始订单行数: {len(df_order)}")
-        st.write(f"日期筛选后订单: {df_o_original_count}")
-        st.write(f"最终 df_o 行数: {len(df_o)}")
+        st.write(f"订单行数: {len(df_o)}")
         
-        # 东芝详细诊断
-        st.markdown("**东芝金额诊断：**")
+        # 检查订单表品牌唯一值
+        st.write("订单表品牌唯一值（标准化后）：", df_order["品牌"].unique())
         
-        # 1. 原始数据中的东芝
-        raw_toshiba = df_order[df_order["品牌"] == "东芝"]
-        st.write(f"原始数据中东芝订单数: {len(raw_toshiba)}")
-        if len(raw_toshiba) > 0:
-            raw_amount = raw_toshiba["订单金额"].sum()
-            st.write(f"原始东芝总金额: {raw_amount:,.2f} 元")
+        # 东芝原始数据（未经过滤）
+        toshiba_raw = df_order[df_order["品牌"] == "东芝"]
+        st.write(f"东芝订单原始行数：{len(toshiba_raw)}")
+        st.write(f"东芝原始总额：{toshiba_raw['订单金额'].sum():.2f} 元")
+        if len(toshiba_raw) > 0:
+            st.dataframe(toshiba_raw[["日期", "订单金额", "品类", "运营中心"]])
         
-        # 2. 日期筛选后的东芝
-        date_filtered_toshiba = df_o[df_o["品牌"] == "东芝"]
-        st.write(f"日期筛选后东芝订单数: {len(date_filtered_toshiba)}")
+        # 东芝过滤后数据
+        toshiba_filtered = df_o[df_o["品牌"] == "东芝"]
+        st.write(f"东芝订单过滤后行数：{len(toshiba_filtered)}")
+        st.write(f"东芝过滤后总额：{toshiba_filtered['订单金额'].sum():.2f} 元")
         
-        # 3. 最终筛选后的东芝
-        final_toshiba = df_o[df_o["品牌"] == "东芝"]
-        st.write(f"最终筛选后东芝订单数: {len(final_toshiba)}")
-        
-        if len(final_toshiba) > 0:
-            toshiba_amount = final_toshiba["订单金额"].sum()
-            st.write(f"最终东芝总金额: {toshiba_amount:,.2f} 元")
-            
-            # 显示详细订单列表
-            st.markdown("**东芝订单明细：**")
-            display_cols = ["日期", "品牌", "品牌_原始", "订单金额", "品类", "运营中心", "省市"]
-            available_cols = [c for c in display_cols if c in final_toshiba.columns]
-            st.dataframe(final_toshiba[available_cols])
-            
-            # 验证目标金额
-            target_amount = 296892
-            diff = toshiba_amount - target_amount
-            if abs(diff) < 0.01:
-                st.success(f"✅ 东芝金额验证通过: {toshiba_amount:,.2f} 元 = 目标 {target_amount:,.2f} 元")
-            else:
-                st.error(f"❌ 东芝金额不匹配！")
-                st.error(f"当前: {toshiba_amount:,.2f} 元")
-                st.error(f"目标: {target_amount:,.2f} 元")
-                st.error(f"差额: {diff:,.2f} 元 ({diff/target_amount*100:.2f}%)")
-                
-                # 分析差额原因
-                if len(raw_toshiba) != len(final_toshiba):
-                    st.warning(f"订单数量变化: {len(raw_toshiba)} → {len(final_toshiba)} (被筛选掉 {len(raw_toshiba) - len(final_toshiba)} 条)")
+        if len(toshiba_raw) > 0 and len(toshiba_filtered) == 0:
+            st.error("❌ 东芝订单被筛选器过滤掉了！请检查日期范围、品牌选择、品类选择或运营中心筛选。")
+        elif len(toshiba_filtered) > 0 and toshiba_filtered['订单金额'].sum() != 296892:
+            st.warning(f"⚠️ 东芝过滤后金额 {toshiba_filtered['订单金额'].sum():.2f} 不等于 296892，可能部分订单金额解析失败或数据有误。")
 
 # 标题
 st.markdown('<div class="dashboard-title">🏬 天猫新零售数据看板</div>', unsafe_allow_html=True)
@@ -656,37 +528,8 @@ else:
 # 明细核对
 with st.expander("📄 订单明细（核对总金额）"):
     if not df_o.empty:
-        cols_to_show = [c for c in ["日期", "品牌", "品牌_原始", "品类", "运营中心", "市区", "省市", "订单金额"] if c in df_o.columns]
+        cols_to_show = [c for c in ["日期", "品牌", "品类", "运营中心", "市区", "省市", "订单金额"] if c in df_o.columns]
         st.dataframe(df_o[cols_to_show], use_container_width=True)
         st.success(f"✅ 订单总金额：{total_amount:,.2f} 元  =  {total_wan:.2f} 万元")
-        
-        # 【新增】各品牌金额汇总核对
-        st.markdown("**各品牌金额核对：**")
-        brand_check = df_o.groupby("品牌")["订单金额"].agg(['count', 'sum']).round(2)
-        brand_check.columns = ['订单数', '总金额(元)']
-        brand_check['总金额(万元)'] = (brand_check['总金额(元)'] / 10000).round(4)
-        st.dataframe(brand_check, use_container_width=True)
-        
-        # 特别标注东芝
-        if "东芝" in brand_check.index:
-            toshiba_row = brand_check.loc["东芝"]
-            st.info(f"💡 东芝: {toshiba_row['订单数']} 单, {toshiba_row['总金额(元)']:,.2f} 元 ({toshiba_row['总金额(万元)']:.4f} 万元)")
     else:
         st.info("无订单明细")
-'''
-
-# 保存到文件
-output_path = '/mnt/kimi/output/tmall_dashboard_fixed.py'
-with open(output_path, 'w', encoding='utf-8') as f:
-    f.write(complete_code)
-
-print(f"✅ 完整代码已生成并保存到: {output_path}")
-print(f"\n文件大小: {len(complete_code)} 字符")
-print(f"\n主要修正点:")
-print("1. ✅ 增强品牌标准化函数 - 支持更多东芝变体（東芝、toshiba等）")
-print("2. ✅ 保留原始品牌字段 - 添加'品牌_原始'列用于调试对比")
-print("3. ✅ 增强调试面板 - 显示品牌标准化前后的详细对比")
-print("4. ✅ 东芝专项诊断 - 在调试模式下显示东芝金额的详细计算过程")
-print("5. ✅ 订单金额处理优化 - 保留原始值，显示NaN值统计")
-print("6. ✅ 筛选逻辑增强 - 记录筛选前后的数据量变化")
-print("7. ✅ 订单明细增强 - 显示各品牌金额汇总核对表")
