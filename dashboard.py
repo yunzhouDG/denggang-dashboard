@@ -11,6 +11,101 @@ import requests
 
 st.set_page_config(layout="wide", page_title="天猫新零售数据看板", page_icon="📊")
 
+# ----------------------------- 自定义CSS美化 -----------------------------
+st.markdown("""
+<style>
+    /* 全局背景与字体 */
+    .stApp {
+        background-color: #f5f7fb;
+        font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+    }
+    /* 侧边栏样式 */
+    .css-1d391kg, .css-163ttbj, .eczjsme11 {
+        background-color: #ffffff;
+        border-right: 1px solid #e6e9f0;
+    }
+    /* 指标卡片自定义 */
+    .metric-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
+        border-radius: 20px;
+        padding: 1rem 1.2rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border: 1px solid rgba(66, 153, 225, 0.1);
+        transition: all 0.2s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    }
+    .metric-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #4a5568;
+        letter-spacing: 0.02em;
+        margin-bottom: 0.5rem;
+    }
+    .metric-value {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #1e293b;
+        line-height: 1.2;
+    }
+    /* 标题样式 */
+    .dashboard-title {
+        font-size: 2rem;
+        font-weight: 700;
+        background: linear-gradient(120deg, #2563eb, #7c3aed);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.01em;
+    }
+    .section-header {
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #1f2937;
+        border-left: 5px solid #3b82f6;
+        padding-left: 1rem;
+        margin: 1.5rem 0 1rem 0;
+    }
+    /* 图表容器圆角 */
+    .stPlotlyChart {
+        background: white;
+        border-radius: 20px;
+        padding: 0.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    /* 表格样式 */
+    .stDataFrame {
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    /* 侧边栏筛选框美化 */
+    .css-1p1n2e7, .css-1hynsf2 {
+        border-radius: 12px;
+    }
+    /* 按钮风格 */
+    .stButton button {
+        border-radius: 30px;
+        background-color: #3b82f6;
+        color: white;
+        border: none;
+        font-weight: 500;
+        transition: 0.2s;
+    }
+    .stButton button:hover {
+        background-color: #2563eb;
+        transform: scale(1.02);
+    }
+    hr {
+        margin: 1rem 0;
+        border-color: #e2e8f0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # ----------------------------- 省份中心坐标（备用） -----------------------------
 PROVINCE_CENTER_STD = {
     '北京市': [116.4074, 39.9042], '上海市': [121.4737, 31.2304],
@@ -112,23 +207,20 @@ def load_data():
 
     return df_main, df_order
 
-# ----------------------------- 省份提取（支持多种格式） -----------------------------
+# ----------------------------- 省份提取 -----------------------------
 def normalize_province_name(name):
     if not name:
         return None
     name = str(name).strip()
-    # 直辖市
     if name in ['北京', '北京市']: return '北京市'
     if name in ['上海', '上海市']: return '上海市'
     if name in ['天津', '天津市']: return '天津市'
     if name in ['重庆', '重庆市']: return '重庆市'
-    # 自治区
     if name in ['广西', '广西壮族自治区']: return '广西壮族自治区'
     if name in ['内蒙古', '内蒙古自治区']: return '内蒙古自治区'
     if name in ['宁夏', '宁夏回族自治区']: return '宁夏回族自治区'
     if name in ['新疆', '新疆维吾尔自治区']: return '新疆维吾尔自治区'
     if name in ['西藏', '西藏自治区']: return '西藏自治区'
-    # 普通省份
     if name.endswith('省'):
         return name
     common = ['江苏','浙江','广东','山东','河南','四川','湖北','湖南','河北','福建','安徽','辽宁','江西','陕西','山西','云南','贵州','甘肃','青海','吉林','黑龙江','海南','台湾']
@@ -169,22 +261,22 @@ actual_centers = sorted([c for c in df_main["运营中心"].dropna().unique() if
 actual_areas = sorted([a for a in df_main["片区"].dropna().unique() if a and a != "未知"])
 brand_options = actual_brands + ["洗衣机汇总", "美的厨热", "美的冰箱", "美的空调"]
 
-st.sidebar.header("🔍 筛选条件")
+st.sidebar.markdown("## 🎛️ 筛选面板")
 if not df_main["日期"].isna().all():
     min_date = df_main["日期"].min().date()
     max_date = df_main["日期"].max().date()
 else:
     min_date = datetime.today().date()
     max_date = datetime.today().date()
-date_range = st.sidebar.date_input("日期范围", [min_date, max_date])
+date_range = st.sidebar.date_input("📅 日期范围", [min_date, max_date])
 
 col1_s, col2_s = st.sidebar.columns(2)
 with col1_s:
-    sel_brand = st.multiselect("品牌", brand_options, default=actual_brands)
-    sel_cat = st.multiselect("品类", actual_cats, default=actual_cats)
+    sel_brand = st.multiselect("🏷️ 品牌", brand_options, default=actual_brands)
+    sel_cat = st.multiselect("📦 品类", actual_cats, default=actual_cats)
 with col2_s:
-    sel_area = st.multiselect("片区", actual_areas, default=actual_areas)
-    sel_center = st.multiselect("运营中心", actual_centers, default=actual_centers)
+    sel_area = st.multiselect("🗺️ 片区", actual_areas, default=actual_areas)
+    sel_center = st.multiselect("📍 运营中心", actual_centers, default=actual_centers)
 
 def filter_by_date(df, date_range):
     if "日期" not in df.columns or df["日期"].isna().all():
@@ -216,9 +308,11 @@ if st.session_state.debug_mode:
         st.write(f"最终 df_m 行数: {len(df_m)}")
         st.write(f"订单行数: {len(df_o)}")
 
-# 指标卡片
-st.title("🏬 天猫新零售数据看板")
-c1, c2, c3, c4 = st.columns(4)
+# ===================== 标题 =====================
+st.markdown('<div class="dashboard-title">🏬 天猫新零售数据看板</div>', unsafe_allow_html=True)
+st.markdown(f"<div style='color:#64748b; margin-bottom:1.2rem;'>数据更新至 {max_date}</div>", unsafe_allow_html=True)
+
+# ===================== 指标卡片 =====================
 total_leads = len(df_m)
 valid_mask = df_m["外呼状态"].isin(["高意向", "低意向", "无需外呼"])
 valid_leads = valid_mask.sum()
@@ -226,13 +320,38 @@ order_count = len(df_o)
 total_amount = df_o["订单金额"].sum() if not df_o.empty else 0.0
 total_wan = total_amount / 10000
 
-c1.metric("总客资", f"{total_leads:,}")
-c2.metric("有效客资", f"{valid_leads:,}")
-c3.metric("成交单量", f"{order_count:,}")
-c4.metric("总金额（万元）", f"{total_wan:.2f}")
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label">📋 总客资</div>
+        <div class="metric-value">{total_leads:,}</div>
+    </div>
+    """, unsafe_allow_html=True)
+with col2:
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label">✅ 有效客资</div>
+        <div class="metric-value">{valid_leads:,}</div>
+    </div>
+    """, unsafe_allow_html=True)
+with col3:
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label">🛒 成交单量</div>
+        <div class="metric-value">{order_count:,}</div>
+    </div>
+    """, unsafe_allow_html=True)
+with col4:
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label">💰 总金额（万元）</div>
+        <div class="metric-value">{total_wan:.2f} 万</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# 转化漏斗（修改后：每个阶段不同颜色，数值完整显示）
-st.header("📉 转化漏斗")
+# ===================== 转化漏斗 =====================
+st.markdown('<div class="section-header">📉 转化漏斗</div>', unsafe_allow_html=True)
 if "最新跟进状态" in df_m.columns and not df_m.empty:
     assigned = df_m[valid_mask & (df_m["最新跟进状态"] != "未分配")].shape[0]
     followed = df_m[valid_mask & (~df_m["最新跟进状态"].isin(["未分配", "待查看", "待联系"]))].shape[0]
@@ -242,7 +361,6 @@ else:
 
 funnel_labels = ["总客资", "有效客资", "已分配", "已跟进", "成交"]
 funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
-# 自定义颜色
 colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
 fig_funnel = go.Figure(go.Funnel(
     y=funnel_labels,
@@ -253,10 +371,17 @@ fig_funnel = go.Figure(go.Funnel(
     textposition="inside",
     connector=dict(line=dict(color="grey", width=2))
 ))
+fig_funnel.update_layout(
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(0,0,0,0)',
+    font=dict(family="Segoe UI", size=12),
+    margin=dict(l=20, r=20, t=40, b=20)
+)
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# 转化率趋势
-st.header("📈 转化率趋势")
+# ===================== 转化率趋势 =====================
+st.markdown('<div class="section-header">📈 转化率趋势</div>', unsafe_allow_html=True)
+
 def map_ratio(r):
     if r <= 1.0:
         return r
@@ -304,46 +429,56 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     mapped_ticks = [map_ratio(v) for v in raw_ticks]
     tick_labels = [f"{int(v*100)}%" for v in raw_ticks]
     fig_trend = go.Figure()
-    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["有效率_mapped"], mode='lines+markers', name='有效率'))
-    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["分配率_mapped"], mode='lines+markers', name='分配率'))
-    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["跟进率_mapped"], mode='lines+markers', name='跟进率'))
-    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["转化率_mapped"], mode='lines+markers', name='转化率'))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["有效率_mapped"], mode='lines+markers', name='有效率', line=dict(color='#3b82f6', width=2)))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["分配率_mapped"], mode='lines+markers', name='分配率', line=dict(color='#10b981', width=2)))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["跟进率_mapped"], mode='lines+markers', name='跟进率', line=dict(color='#f59e0b', width=2)))
+    fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["转化率_mapped"], mode='lines+markers', name='转化率', line=dict(color='#ef4444', width=2)))
     y_max_mapped = map_ratio(3.6)
     fig_trend.update_layout(
         title="转化率趋势（有效率、分配率、跟进率、转化率）<br><sub>注：100%以上区域已压缩</sub>",
         xaxis_title="日期",
         yaxis=dict(title="比率", tickformat='.0%', range=[0, y_max_mapped], tickvals=mapped_ticks, ticktext=tick_labels, tickangle=45),
-        legend=dict(x=0.01, y=0.99),
-        hovermode='x unified'
+        legend=dict(x=0.01, y=0.99, bgcolor='rgba(255,255,255,0.8)'),
+        hovermode='x unified',
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family="Segoe UI", size=12)
     )
     st.plotly_chart(fig_trend, use_container_width=True)
 else:
     st.info("无有效日期数据，无法绘制趋势图")
 
-# 销售额分布（品牌、品类、运营中心）
-st.header("💰 销售额分布")
+# ===================== 销售额分布 =====================
+st.markdown('<div class="section-header">💰 销售额分布</div>', unsafe_allow_html=True)
 if df_o.empty:
     st.warning("当前筛选条件下无订单数据，无法展示销售额分布")
 else:
-    tab1, tab2, tab3 = st.tabs(["品牌", "品类", "运营中心"])
+    tab1, tab2, tab3 = st.tabs(["🏷️ 品牌", "📦 品类", "📍 运营中心"])
     with tab1:
         brand_sale = df_o.groupby("品牌")["订单金额"].sum().sort_values(ascending=False).head(10).reset_index()
         brand_sale["万元"] = brand_sale["订单金额"] / 10000
-        fig1 = px.bar(brand_sale, x="品牌", y="万元", color="万元", title="品牌销售额 Top10")
+        fig1 = px.bar(brand_sale, x="品牌", y="万元", color="万元", color_continuous_scale="Blues",
+                      title="品牌销售额 Top10", text="万元")
+        fig1.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+        fig1.update_layout(uniformtext_minsize=8, uniformtext_mode='hide', plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig1, use_container_width=True)
     with tab2:
         cat_sale = df_o.groupby("品类")["订单金额"].sum().reset_index()
         cat_sale["万元"] = cat_sale["订单金额"] / 10000
-        fig2 = px.pie(cat_sale, names="品类", values="万元", title="品类销售额占比")
+        fig2 = px.pie(cat_sale, names="品类", values="万元", title="品类销售额占比",
+                      color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig2.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig2, use_container_width=True)
     with tab3:
         center_sale = df_o.groupby("运营中心")["订单金额"].sum().reset_index()
         center_sale["万元"] = center_sale["订单金额"] / 10000
-        fig3 = px.bar(center_sale, x="运营中心", y="万元", color="万元", title="运营中心销售额")
+        fig3 = px.bar(center_sale, x="运营中心", y="万元", color="万元", color_continuous_scale="Tealgrn",
+                      title="运营中心销售额")
+        fig3.update_layout(xaxis_tickangle=-45, plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig3, use_container_width=True)
 
-# ======================= 省份销售额分布：柱状图 + 气泡地图 =======================
-st.header("🗺️ 省份销售额分布")
+# ===================== 省份销售额分布 =====================
+st.markdown('<div class="section-header">🗺️ 省份销售额分布</div>', unsafe_allow_html=True)
 st.caption("左侧：各省份销售额排序（横向柱状图）｜右侧：气泡地图（大小代表销售额）")
 
 if df_o.empty:
@@ -352,7 +487,6 @@ else:
     if "省市" not in df_o.columns:
         st.error("订单表中缺少'省市'字段，无法按省份统计。")
     else:
-        # 提取省份标准化名称
         df_o["省份_std"] = df_o["省市"].apply(extract_province_from_shengshi)
         province_sale = df_o.groupby("省份_std")["订单金额"].sum().reset_index()
         province_sale = province_sale[province_sale["省份_std"].notna() & (province_sale["省份_std"] != "")]
@@ -366,15 +500,10 @@ else:
         if province_sale.empty:
             st.warning("未能从'省市'字段中提取到有效省份")
         else:
-            # 排序（降序，用于柱状图）
             province_sale_sorted = province_sale.sort_values("万元", ascending=False)
-            
-            # 创建两列布局
             col_left, col_right = st.columns([1, 1])
-            
             with col_left:
                 st.subheader("📊 各省份销售额排行")
-                # 横向柱状图（条形图）
                 fig_bar = px.bar(
                     province_sale_sorted,
                     x="万元",
@@ -387,19 +516,16 @@ else:
                     labels={"万元": "销售额(万元)", "省份_std": ""}
                 )
                 fig_bar.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-                fig_bar.update_layout(height=600, yaxis={'categoryorder':'total ascending'})
+                fig_bar.update_layout(height=600, yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig_bar, use_container_width=True)
-            
             with col_right:
                 st.subheader("🗺️ 气泡地图（地理分布）")
-                # 添加经纬度（使用预定义中心坐标）
                 province_sale["lon"] = province_sale["省份_std"].apply(
                     lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[0]
                 )
                 province_sale["lat"] = province_sale["省份_std"].apply(
                     lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[1]
                 )
-                # 气泡图
                 fig_map = go.Figure()
                 fig_map.add_trace(go.Scattergeo(
                     lon=province_sale["lon"],
@@ -407,7 +533,7 @@ else:
                     mode='markers+text',
                     text=province_sale["省份_std"],
                     textposition="top center",
-                    textfont=dict(size=11, color="black"),
+                    textfont=dict(size=11, color="#1f2937"),
                     marker=dict(
                         size=province_sale["万元"] / province_sale["万元"].max() * 40 + 10,
                         color=province_sale["万元"],
@@ -429,11 +555,12 @@ else:
                         landcolor='rgb(243,243,243)'
                     ),
                     height=600,
-                    margin={"r":0,"t":40,"l":0,"b":0}
+                    margin={"r":0,"t":40,"l":0,"b":0},
+                    paper_bgcolor='rgba(0,0,0,0)'
                 )
                 st.plotly_chart(fig_map, use_container_width=True)
 
-# 明细核对
+# ===================== 明细核对 =====================
 with st.expander("📄 订单明细（核对总金额）"):
     if not df_o.empty:
         cols_to_show = [c for c in ["日期", "品牌", "品类", "运营中心", "市区", "省市", "订单金额"] if c in df_o.columns]
