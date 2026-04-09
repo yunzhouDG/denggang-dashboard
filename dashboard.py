@@ -10,11 +10,10 @@ import plotly.graph_objects as go
 
 st.set_page_config(layout="wide", page_title="天猫新零售数据看板", page_icon="📊")
 
-# ----------------------------- 自定义CSS美化 -----------------------------
+# 自定义样式
 st.markdown("""
 <style>
     .stApp { background-color: #f5f7fb; font-family: 'Segoe UI', 'Roboto', sans-serif; }
-    .css-1d391kg, .css-163ttbj, .eczjsme11 { background-color: #ffffff; border-right: 1px solid #e6e9f0; }
     .metric-card {
         background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
         border-radius: 20px; padding: 1rem 1.2rem;
@@ -37,13 +36,10 @@ st.markdown("""
         margin: 1.5rem 0 1rem 0;
     }
     .stPlotlyChart { background: white; border-radius: 20px; padding: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
-    .stDataFrame { border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    .stButton button { border-radius: 30px; background-color: #3b82f6; color: white; border: none; font-weight: 500; }
-    .stButton button:hover { background-color: #2563eb; transform: scale(1.02); }
 </style>
 """, unsafe_allow_html=True)
 
-# ----------------------------- 省份中心坐标 -----------------------------
+# 省份中心坐标
 PROVINCE_CENTER_STD = {
     '北京市': [116.4074, 39.9042], '上海市': [121.4737, 31.2304],
     '天津市': [117.1902, 39.1256], '重庆市': [106.5044, 29.5582],
@@ -64,24 +60,23 @@ PROVINCE_CENTER_STD = {
     '香港特别行政区': [114.1700, 22.2700], '澳门特别行政区': [113.5400, 22.1900]
 }
 
-# ----------------------------- 品牌标准化（增强版） -----------------------------
+# 品牌标准化
 def standardize_brand(brand_val):
     if pd.isna(brand_val):
         return "未知"
     s = str(brand_val).strip().lower()
-    if '小天鹅' in s or 'swan' in s or 'littleswan' in s:
+    if '小天鹅' in s or 'swan' in s:
         return "小天鹅"
     if '东芝' in s or 'toshiba' in s:
         return "东芝"
-    if 'colmo' in s or '科摩' in s or 'comlo' in s:
+    if 'colmo' in s or '科摩' in s:
         return "colmo"
     if '美的' in s or 'midea' in s:
         return "美的"
     return brand_val
 
-# ----------------------------- 品牌筛选函数 -----------------------------
-def apply_brand_filter(df, selected_brands, ignore_filter=False):
-    if ignore_filter or not selected_brands:
+def apply_brand_filter(df, selected_brands):
+    if not selected_brands:
         return df
     cond = pd.Series(False, index=df.index)
     normal_brands = [b for b in selected_brands if b not in ["洗衣机汇总", "美的厨热", "美的冰箱", "美的空调"]]
@@ -97,7 +92,7 @@ def apply_brand_filter(df, selected_brands, ignore_filter=False):
         cond |= (df["品牌"] == "美的") & (df["品类"] == "空调")
     return df[cond]
 
-# ----------------------------- 数据加载 -----------------------------
+# 加载数据
 @st.cache_data(ttl=3600)
 def load_data():
     if not os.path.exists("data.zip"):
@@ -142,7 +137,6 @@ def load_data():
     else:
         df_order["订单金额"] = 0.0
 
-    # 统一品牌列并标准化
     for df in [df_main, df_order]:
         raw_brand = df.get("品牌", df.get("意向品牌", "未知")).fillna("未知")
         df["品牌"] = raw_brand.apply(standardize_brand)
@@ -157,12 +151,11 @@ def load_data():
     if "市区" not in df_order.columns:
         df_order["市区"] = ""
     if "省市" not in df_order.columns:
-        st.warning("订单表中缺少'省市'字段，无法绘制省份地图")
         df_order["省市"] = ""
 
     return df_main, df_order
 
-# ----------------------------- 省份提取 -----------------------------
+# 省份提取
 def normalize_province_name(name):
     if not name:
         return None
@@ -194,36 +187,13 @@ def extract_province_from_shengshi(shengshi):
     else:
         return normalize_province_name(s)
 
-# ----------------------------- 主程序 -----------------------------
+# 主程序
 df_main, df_order = load_data()
 if df_main.empty:
     st.error("客资明细表为空，请检查数据源")
     st.stop()
 
-# 计算原始品牌总额（不经过任何筛选）
-raw_brand_amounts = df_order.groupby("品牌")["订单金额"].sum().to_dict()
-expected_toshiba = 296892
-actual_toshiba_raw = raw_brand_amounts.get("东芝", 0)
-if actual_toshiba_raw != expected_toshiba:
-    st.sidebar.error(f"⚠️ 原始东芝金额为 {actual_toshiba_raw:.2f} 元，与预期 {expected_toshiba} 元不符！请检查数据库订单表品牌字段是否正确映射。")
-
-if "debug_mode" not in st.session_state:
-    st.session_state.debug_mode = False
-if "ignore_all_filters" not in st.session_state:
-    st.session_state.ignore_all_filters = False
-
-with st.sidebar:
-    st.session_state.debug_mode = st.checkbox("🔧 调试模式", value=False)
-    st.session_state.ignore_all_filters = st.checkbox("🔓 忽略所有筛选（仅用于调试）", value=False)
-    if st.session_state.debug_mode:
-        st.markdown("---")
-        st.subheader("📊 原始品牌总额（未筛选）")
-        for brand, amt in raw_brand_amounts.items():
-            st.write(f"{brand}: {amt:,.2f} 元 ({amt/10000:.2f}万)")
-        if actual_toshiba_raw != expected_toshiba:
-            st.error(f"东芝原始金额异常：应为{expected_toshiba}，实为{actual_toshiba_raw:.2f}")
-
-# 合并主表和订单表的品牌作为默认选项
+# 获取可选项
 all_brands = set(df_main["品牌"].dropna().unique()) | set(df_order["品牌"].dropna().unique())
 actual_brands = sorted([b for b in all_brands if b and b != "未知"])
 actual_cats = sorted([c for c in df_main["品类"].dropna().unique() if c and c != "未知"])
@@ -231,9 +201,8 @@ actual_centers = sorted([c for c in df_main["运营中心"].dropna().unique() if
 actual_areas = sorted([a for a in df_main["片区"].dropna().unique() if a and a != "未知"])
 brand_options = actual_brands + ["洗衣机汇总", "美的厨热", "美的冰箱", "美的空调"]
 
+# 侧边栏筛选
 st.sidebar.markdown("## 🎛️ 筛选面板")
-
-# 获取日期范围
 if not df_main["日期"].isna().all():
     min_date = df_main["日期"].min().date()
     max_date = df_main["日期"].max().date()
@@ -241,10 +210,8 @@ else:
     min_date = datetime.today().date()
     max_date = datetime.today().date()
 
-# 拆分日期选择器为开始和结束，标签为中文
-st.sidebar.caption("提示：日期选择器显示英文是浏览器语言设置，但标签为中文，不影响选择")
-start_date = st.sidebar.date_input("开始日期", min_date, help="选择统计的开始日期")
-end_date = st.sidebar.date_input("结束日期", max_date, help="选择统计的结束日期")
+start_date = st.sidebar.date_input("开始日期", min_date)
+end_date = st.sidebar.date_input("结束日期", max_date)
 date_range = (start_date, end_date)
 
 col1_s, col2_s = st.sidebar.columns(2)
@@ -255,45 +222,31 @@ with col2_s:
     sel_area = st.multiselect("🗺️ 片区", actual_areas, default=actual_areas, placeholder="请选择片区")
     sel_center = st.multiselect("📍 运营中心", actual_centers, default=actual_centers, placeholder="请选择运营中心")
 
-def filter_by_date(df, date_range, ignore=False):
-    if ignore or "日期" not in df.columns or df["日期"].isna().all():
+def filter_by_date(df, date_range):
+    if "日期" not in df.columns or df["日期"].isna().all():
         return df
     d_start, d_end = date_range
     return df[(df["日期"].dt.date >= d_start) & (df["日期"].dt.date <= d_end)]
 
-ignore = st.session_state.ignore_all_filters
-df_m = filter_by_date(df_main, date_range, ignore)
-df_m = apply_brand_filter(df_m, sel_brand, ignore)
-if not ignore and sel_cat:
+df_m = filter_by_date(df_main, date_range)
+df_m = apply_brand_filter(df_m, sel_brand)
+if sel_cat:
     df_m = df_m[df_m["品类"].isin(sel_cat)]
-if not ignore and sel_center:
+if sel_center:
     df_m = df_m[df_m["运营中心"].isin(sel_center)]
-if not ignore and sel_area:
+if sel_area:
     df_m = df_m[df_m["片区"].isin(sel_area)]
 
-df_o = filter_by_date(df_order, date_range, ignore)
-df_o = apply_brand_filter(df_o, sel_brand, ignore)
-if not ignore and sel_cat:
+df_o = filter_by_date(df_order, date_range)
+df_o = apply_brand_filter(df_o, sel_brand)
+if sel_cat:
     df_o = df_o[df_o["品类"].isin(sel_cat)]
-if not ignore and sel_center:
+if sel_center:
     df_o = df_o[df_o["运营中心"].isin(sel_center)]
 
-if st.session_state.debug_mode:
-    with st.sidebar:
-        st.markdown("---")
-        st.subheader("🔎 过滤后品牌金额")
-        filtered_amt = df_o.groupby("品牌")["订单金额"].sum()
-        for brand, amt in filtered_amt.items():
-            raw = raw_brand_amounts.get(brand, 0)
-            st.write(f"{brand}: {amt:,.2f} 元 (原始: {raw:,.2f})")
-            if raw != amt:
-                st.caption(f"差异: {raw - amt:.2f} 元 (可能是筛选导致)")
-        st.write(f"过滤后订单总行数: {len(df_o)}")
-
 # 标题
-st.markdown('<div class="dashboard-title">🏬 天猫新零售数据看板</div>', unsafe_allow_html=True)
-# 将截止日期格式化为中文
 latest_date = max_date.strftime("%Y年%m月%d日") if not df_main["日期"].isna().all() else "未知"
+st.markdown('<div class="dashboard-title">🏬 天猫新零售数据看板</div>', unsafe_allow_html=True)
 st.markdown(f"<div style='color:#64748b; margin-bottom:1.2rem;'>数据更新至 {latest_date}</div>", unsafe_allow_html=True)
 
 # 指标卡片
@@ -355,23 +308,14 @@ fig_funnel = go.Figure(go.Funnel(
     textposition="inside",
     connector=dict(line=dict(color="grey", width=2))
 ))
-fig_funnel.update_layout(
-    title="转化漏斗（单位：个）",
-    paper_bgcolor='rgba(0,0,0,0)',
-    plot_bgcolor='rgba(0,0,0,0)',
-    font=dict(family="Segoe UI", size=12),
-    margin=dict(l=20, r=20, t=40, b=20)
-)
+fig_funnel.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family="Segoe UI", size=12))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
 # 转化率趋势
 st.markdown('<div class="section-header">📈 转化率趋势</div>', unsafe_allow_html=True)
 
 def map_ratio(r):
-    if r <= 1.0:
-        return r
-    else:
-        return 1.0 + (r - 1.0) * 0.2
+    return r if r <= 1.0 else 1.0 + (r - 1.0) * 0.2
 
 if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     daily = df_m.groupby(df_m["日期"].dt.date).agg(
@@ -399,43 +343,26 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     daily["转化率"] = daily["成交数"] / daily["有效客资"].replace(0, pd.NA)
     for col in ["有效率", "分配率", "跟进率", "转化率"]:
         daily[col + "_mapped"] = daily[col].apply(lambda x: map_ratio(x) if pd.notna(x) else None)
-    raw_ticks = []
-    t = 0.0
-    while t <= 1.0 + 1e-9:
-        raw_ticks.append(round(t, 6))
-        t += 0.1
-    t = 1.5
-    while t <= 3.6 + 1e-9:
-        raw_ticks.append(round(t, 6))
-        t += 0.5
-    if 3.6 not in raw_ticks:
-        raw_ticks.append(3.6)
-    raw_ticks = sorted(set(raw_ticks))
+    
+    raw_ticks = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0, 2.5, 3.0, 3.6]
     mapped_ticks = [map_ratio(v) for v in raw_ticks]
     tick_labels = [f"{int(v*100)}%" for v in raw_ticks]
+    daily["日期_中文"] = daily["日期"].apply(lambda d: d.strftime("%m月%d日"))
+    
     fig_trend = go.Figure()
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["有效率_mapped"], mode='lines+markers', name='有效率', line=dict(color='#3b82f6', width=2)))
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["分配率_mapped"], mode='lines+markers', name='分配率', line=dict(color='#10b981', width=2)))
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["跟进率_mapped"], mode='lines+markers', name='跟进率', line=dict(color='#f59e0b', width=2)))
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["转化率_mapped"], mode='lines+markers', name='转化率', line=dict(color='#ef4444', width=2)))
     y_max_mapped = map_ratio(3.6)
-    # 格式化横坐标日期为中文格式（例如 "4月1日"）
-    daily["日期_中文"] = daily["日期"].apply(lambda d: d.strftime("%m月%d日"))
     fig_trend.update_layout(
         title="转化率趋势（有效率、分配率、跟进率、转化率）<br><sub>注：100%以上区域已压缩</sub>",
-        xaxis=dict(
-            title="日期",
-            tickmode='array',
-            tickvals=daily["日期"],
-            ticktext=daily["日期_中文"],
-            tickangle=45
-        ),
+        xaxis=dict(title="日期", tickmode='array', tickvals=daily["日期"], ticktext=daily["日期_中文"], tickangle=45),
         yaxis=dict(title="比率", tickformat='.0%', range=[0, y_max_mapped], tickvals=mapped_ticks, ticktext=tick_labels),
         legend=dict(x=0.01, y=0.99, bgcolor='rgba(255,255,255,0.8)'),
         hovermode='x unified',
         plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family="Segoe UI", size=12)
+        paper_bgcolor='rgba(0,0,0,0)'
     )
     st.plotly_chart(fig_trend, use_container_width=True)
 else:
@@ -453,7 +380,7 @@ else:
         fig1 = px.bar(brand_sale, x="品牌", y="万元", color="万元", color_continuous_scale="Blues",
                       title="品牌销售额 Top10（万元）", text="万元")
         fig1.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-        fig1.update_layout(uniformtext_minsize=8, uniformtext_mode='hide', plot_bgcolor='rgba(0,0,0,0)')
+        fig1.update_layout(plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig1, use_container_width=True)
     with tab2:
         cat_sale = df_o.groupby("品类")["订单金额"].sum().reset_index()
@@ -484,11 +411,6 @@ else:
         province_sale = df_o.groupby("省份_std")["订单金额"].sum().reset_index()
         province_sale = province_sale[province_sale["省份_std"].notna() & (province_sale["省份_std"] != "")]
         province_sale["万元"] = province_sale["订单金额"] / 10000
-        
-        if st.session_state.debug_mode:
-            with st.expander("🔍 省份提取调试信息"):
-                st.write("省市字段样例：", df_o["省市"].dropna().unique()[:20])
-                st.write("提取后的标准化省份：", province_sale["省份_std"].tolist())
         
         if province_sale.empty:
             st.warning("未能从'省市'字段中提取到有效省份")
@@ -545,7 +467,7 @@ else:
                 )
                 st.plotly_chart(fig_map, use_container_width=True)
 
-# 明细核对
+# 订单明细
 with st.expander("📄 订单明细（核对总金额）"):
     if not df_o.empty:
         cols_to_show = [c for c in ["日期", "品牌", "品类", "运营中心", "市区", "省市", "订单金额"] if c in df_o.columns]
