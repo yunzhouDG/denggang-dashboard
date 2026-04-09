@@ -232,6 +232,8 @@ actual_areas = sorted([a for a in df_main["片区"].dropna().unique() if a and a
 brand_options = actual_brands + ["洗衣机汇总", "美的厨热", "美的冰箱", "美的空调"]
 
 st.sidebar.markdown("## 🎛️ 筛选面板")
+
+# 获取日期范围
 if not df_main["日期"].isna().all():
     min_date = df_main["日期"].min().date()
     max_date = df_main["日期"].max().date()
@@ -239,42 +241,19 @@ else:
     min_date = datetime.today().date()
     max_date = datetime.today().date()
 
-# 日期选择器（使用默认英文，添加说明）
-st.sidebar.caption("提示：日期选择器显示英文是浏览器语言设置，不影响使用")
-date_range = st.sidebar.date_input(
-    "📅 日期范围", 
-    [min_date, max_date],
-    help="选择统计的起止日期（显示英文属正常现象）"
-)
+# 拆分日期选择器为开始和结束，标签为中文
+st.sidebar.caption("提示：日期选择器显示英文是浏览器语言设置，但标签为中文，不影响选择")
+start_date = st.sidebar.date_input("开始日期", min_date, help="选择统计的开始日期")
+end_date = st.sidebar.date_input("结束日期", max_date, help="选择统计的结束日期")
+date_range = (start_date, end_date)
 
 col1_s, col2_s = st.sidebar.columns(2)
 with col1_s:
-    # 添加 placeholder 参数，将默认的 "Choose..." 改为中文 "请选择"
-    sel_brand = st.multiselect(
-        "🏷️ 品牌", 
-        brand_options, 
-        default=actual_brands,
-        placeholder="请选择品牌"
-    )
-    sel_cat = st.multiselect(
-        "📦 品类", 
-        actual_cats, 
-        default=actual_cats,
-        placeholder="请选择品类"
-    )
+    sel_brand = st.multiselect("🏷️ 品牌", brand_options, default=actual_brands, placeholder="请选择品牌")
+    sel_cat = st.multiselect("📦 品类", actual_cats, default=actual_cats, placeholder="请选择品类")
 with col2_s:
-    sel_area = st.multiselect(
-        "🗺️ 片区", 
-        actual_areas, 
-        default=actual_areas,
-        placeholder="请选择片区"
-    )
-    sel_center = st.multiselect(
-        "📍 运营中心", 
-        actual_centers, 
-        default=actual_centers,
-        placeholder="请选择运营中心"
-    )
+    sel_area = st.multiselect("🗺️ 片区", actual_areas, default=actual_areas, placeholder="请选择片区")
+    sel_center = st.multiselect("📍 运营中心", actual_centers, default=actual_centers, placeholder="请选择运营中心")
 
 def filter_by_date(df, date_range, ignore=False):
     if ignore or "日期" not in df.columns or df["日期"].isna().all():
@@ -313,7 +292,9 @@ if st.session_state.debug_mode:
 
 # 标题
 st.markdown('<div class="dashboard-title">🏬 天猫新零售数据看板</div>', unsafe_allow_html=True)
-st.markdown(f"<div style='color:#64748b; margin-bottom:1.2rem;'>数据更新至 {max_date}</div>", unsafe_allow_html=True)
+# 将截止日期格式化为中文
+latest_date = max_date.strftime("%Y年%m月%d日") if not df_main["日期"].isna().all() else "未知"
+st.markdown(f"<div style='color:#64748b; margin-bottom:1.2rem;'>数据更新至 {latest_date}</div>", unsafe_allow_html=True)
 
 # 指标卡片
 total_leads = len(df_m)
@@ -438,10 +419,18 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["跟进率_mapped"], mode='lines+markers', name='跟进率', line=dict(color='#f59e0b', width=2)))
     fig_trend.add_trace(go.Scatter(x=daily["日期"], y=daily["转化率_mapped"], mode='lines+markers', name='转化率', line=dict(color='#ef4444', width=2)))
     y_max_mapped = map_ratio(3.6)
+    # 格式化横坐标日期为中文格式（例如 "4月1日"）
+    daily["日期_中文"] = daily["日期"].apply(lambda d: d.strftime("%m月%d日"))
     fig_trend.update_layout(
         title="转化率趋势（有效率、分配率、跟进率、转化率）<br><sub>注：100%以上区域已压缩</sub>",
-        xaxis_title="日期",
-        yaxis=dict(title="比率", tickformat='.0%', range=[0, y_max_mapped], tickvals=mapped_ticks, ticktext=tick_labels, tickangle=45),
+        xaxis=dict(
+            title="日期",
+            tickmode='array',
+            tickvals=daily["日期"],
+            ticktext=daily["日期_中文"],
+            tickangle=45
+        ),
+        yaxis=dict(title="比率", tickformat='.0%', range=[0, y_max_mapped], tickvals=mapped_ticks, ticktext=tick_labels),
         legend=dict(x=0.01, y=0.99, bgcolor='rgba(255,255,255,0.8)'),
         hovermode='x unified',
         plot_bgcolor='rgba(0,0,0,0)',
