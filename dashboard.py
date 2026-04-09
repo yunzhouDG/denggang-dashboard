@@ -239,12 +239,12 @@ else:
     min_date = datetime.today().date()
     max_date = datetime.today().date()
 
-# ========== 关键修改：日期选择器中文格式 ==========
+# 日期选择器（使用默认英文，添加说明）
+st.sidebar.caption("提示：日期选择器显示英文是浏览器语言设置，不影响使用")
 date_range = st.sidebar.date_input(
     "📅 日期范围", 
-    [min_date, max_date], 
-    format="YYYY年MM月DD日",   # 中文格式
-    help="选择统计的起止日期"
+    [min_date, max_date],
+    help="选择统计的起止日期（显示英文属正常现象）"
 )
 
 col1_s, col2_s = st.sidebar.columns(2)
@@ -353,7 +353,13 @@ fig_funnel = go.Figure(go.Funnel(
     textposition="inside",
     connector=dict(line=dict(color="grey", width=2))
 ))
-fig_funnel.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family="Segoe UI", size=12), margin=dict(l=20, r=20, t=40, b=20))
+fig_funnel.update_layout(
+    title="转化漏斗（单位：个）",
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(0,0,0,0)',
+    font=dict(family="Segoe UI", size=12),
+    margin=dict(l=20, r=20, t=40, b=20)
+)
 st.plotly_chart(fig_funnel, use_container_width=True)
 
 # 转化率趋势
@@ -435,7 +441,7 @@ else:
         brand_sale = df_o.groupby("品牌")["订单金额"].sum().sort_values(ascending=False).head(10).reset_index()
         brand_sale["万元"] = brand_sale["订单金额"] / 10000
         fig1 = px.bar(brand_sale, x="品牌", y="万元", color="万元", color_continuous_scale="Blues",
-                      title="品牌销售额 Top10", text="万元")
+                      title="品牌销售额 Top10（万元）", text="万元")
         fig1.update_traces(texttemplate='%{text:.1f}', textposition='outside')
         fig1.update_layout(uniformtext_minsize=8, uniformtext_mode='hide', plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig1, use_container_width=True)
@@ -450,7 +456,7 @@ else:
         center_sale = df_o.groupby("运营中心")["订单金额"].sum().reset_index()
         center_sale["万元"] = center_sale["订单金额"] / 10000
         fig3 = px.bar(center_sale, x="运营中心", y="万元", color="万元", color_continuous_scale="Tealgrn",
-                      title="运营中心销售额")
+                      title="运营中心销售额（万元）")
         fig3.update_layout(xaxis_tickangle=-45, plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig3, use_container_width=True)
 
