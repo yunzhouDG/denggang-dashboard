@@ -64,16 +64,16 @@ PROVINCE_CENTER_STD = {
     '香港特别行政区': [114.1700, 22.2700], '澳门特别行政区': [113.5400, 22.1900]
 }
 
-# ----------------------------- 品牌标准化 -----------------------------
+# ----------------------------- 品牌标准化（增强版） -----------------------------
 def standardize_brand(brand_val):
     if pd.isna(brand_val):
         return "未知"
     s = str(brand_val).strip().lower()
-    if '小天鹅' in s or 'swan' in s:
+    if '小天鹅' in s or 'swan' in s or 'littleswan' in s:
         return "小天鹅"
     if '东芝' in s or 'toshiba' in s:
         return "东芝"
-    if 'colmo' in s or '科摩' in s:
+    if 'colmo' in s or '科摩' in s or 'comlo' in s:
         return "colmo"
     if '美的' in s or 'midea' in s:
         return "美的"
@@ -200,6 +200,13 @@ if df_main.empty:
     st.error("客资明细表为空，请检查数据源")
     st.stop()
 
+# 计算原始品牌总额（不经过任何筛选）
+raw_brand_amounts = df_order.groupby("品牌")["订单金额"].sum().to_dict()
+expected_toshiba = 296892
+actual_toshiba_raw = raw_brand_amounts.get("东芝", 0)
+if actual_toshiba_raw != expected_toshiba:
+    st.sidebar.error(f"⚠️ 原始东芝金额为 {actual_toshiba_raw:.2f} 元，与预期 {expected_toshiba} 元不符！请检查数据库订单表品牌字段是否正确映射。")
+
 if "debug_mode" not in st.session_state:
     st.session_state.debug_mode = False
 if "ignore_all_filters" not in st.session_state:
@@ -207,9 +214,16 @@ if "ignore_all_filters" not in st.session_state:
 
 with st.sidebar:
     st.session_state.debug_mode = st.checkbox("🔧 调试模式", value=False)
-    st.session_state.ignore_all_filters = st.checkbox("🔓 忽略所有筛选（仅用于调试东芝金额）", value=False)
+    st.session_state.ignore_all_filters = st.checkbox("🔓 忽略所有筛选（仅用于调试）", value=False)
+    if st.session_state.debug_mode:
+        st.markdown("---")
+        st.subheader("📊 原始品牌总额（未筛选）")
+        for brand, amt in raw_brand_amounts.items():
+            st.write(f"{brand}: {amt:,.2f} 元 ({amt/10000:.2f}万)")
+        if actual_toshiba_raw != expected_toshiba:
+            st.error(f"东芝原始金额异常：应为{expected_toshiba}，实为{actual_toshiba_raw:.2f}")
 
-# 合并主表和订单表的品牌作为默认选项（确保东芝出现）
+# 合并主表和订单表的品牌作为默认选项
 all_brands = set(df_main["品牌"].dropna().unique()) | set(df_order["品牌"].dropna().unique())
 actual_brands = sorted([b for b in all_brands if b and b != "未知"])
 actual_cats = sorted([c for c in df_main["品类"].dropna().unique() if c and c != "未知"])
@@ -224,7 +238,14 @@ if not df_main["日期"].isna().all():
 else:
     min_date = datetime.today().date()
     max_date = datetime.today().date()
-date_range = st.sidebar.date_input("📅 日期范围", [min_date, max_date])
+
+# ========== 关键修改：日期选择器中文格式 ==========
+date_range = st.sidebar.date_input(
+    "📅 日期范围", 
+    [min_date, max_date], 
+    format="YYYY年MM月DD日",   # 中文格式
+    help="选择统计的起止日期"
+)
 
 col1_s, col2_s = st.sidebar.columns(2)
 with col1_s:
@@ -257,34 +278,17 @@ if not ignore and sel_cat:
 if not ignore and sel_center:
     df_o = df_o[df_o["运营中心"].isin(sel_center)]
 
-# 调试输出
 if st.session_state.debug_mode:
     with st.sidebar:
         st.markdown("---")
-        st.subheader("🔎 诊断信息")
-        st.write(f"原始主表行数: {len(df_main)}")
-        st.write(f"最终 df_m 行数: {len(df_m)}")
-        st.write(f"订单行数: {len(df_o)}")
-        
-        # 检查订单表品牌唯一值
-        st.write("订单表品牌唯一值（标准化后）：", df_order["品牌"].unique())
-        
-        # 东芝原始数据（未经过滤）
-        toshiba_raw = df_order[df_order["品牌"] == "东芝"]
-        st.write(f"东芝订单原始行数：{len(toshiba_raw)}")
-        st.write(f"东芝原始总额：{toshiba_raw['订单金额'].sum():.2f} 元")
-        if len(toshiba_raw) > 0:
-            st.dataframe(toshiba_raw[["日期", "订单金额", "品类", "运营中心"]])
-        
-        # 东芝过滤后数据
-        toshiba_filtered = df_o[df_o["品牌"] == "东芝"]
-        st.write(f"东芝订单过滤后行数：{len(toshiba_filtered)}")
-        st.write(f"东芝过滤后总额：{toshiba_filtered['订单金额'].sum():.2f} 元")
-        
-        if len(toshiba_raw) > 0 and len(toshiba_filtered) == 0:
-            st.error("❌ 东芝订单被筛选器过滤掉了！请检查日期范围、品牌选择、品类选择或运营中心筛选。")
-        elif len(toshiba_filtered) > 0 and toshiba_filtered['订单金额'].sum() != 296892:
-            st.warning(f"⚠️ 东芝过滤后金额 {toshiba_filtered['订单金额'].sum():.2f} 不等于 296892，可能部分订单金额解析失败或数据有误。")
+        st.subheader("🔎 过滤后品牌金额")
+        filtered_amt = df_o.groupby("品牌")["订单金额"].sum()
+        for brand, amt in filtered_amt.items():
+            raw = raw_brand_amounts.get(brand, 0)
+            st.write(f"{brand}: {amt:,.2f} 元 (原始: {raw:,.2f})")
+            if raw != amt:
+                st.caption(f"差异: {raw - amt:.2f} 元 (可能是筛选导致)")
+        st.write(f"过滤后订单总行数: {len(df_o)}")
 
 # 标题
 st.markdown('<div class="dashboard-title">🏬 天猫新零售数据看板</div>', unsafe_allow_html=True)
