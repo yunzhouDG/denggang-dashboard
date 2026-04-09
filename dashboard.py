@@ -7,91 +7,39 @@ import os
 from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
-import requests
 
 st.set_page_config(layout="wide", page_title="天猫新零售数据看板", page_icon="📊")
 
 # ----------------------------- 自定义CSS美化 -----------------------------
 st.markdown("""
 <style>
-    .stApp {
-        background-color: #f5f7fb;
-        font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
-    }
-    .css-1d391kg, .css-163ttbj, .eczjsme11 {
-        background-color: #ffffff;
-        border-right: 1px solid #e6e9f0;
-    }
+    .stApp { background-color: #f5f7fb; font-family: 'Segoe UI', 'Roboto', sans-serif; }
+    .css-1d391kg, .css-163ttbj, .eczjsme11 { background-color: #ffffff; border-right: 1px solid #e6e9f0; }
     .metric-card {
         background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
-        border-radius: 20px;
-        padding: 1rem 1.2rem;
+        border-radius: 20px; padding: 1rem 1.2rem;
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         border: 1px solid rgba(66, 153, 225, 0.1);
         transition: all 0.2s ease;
     }
-    .metric-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.08);
-    }
-    .metric-label {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #4a5568;
-        letter-spacing: 0.02em;
-        margin-bottom: 0.5rem;
-    }
-    .metric-value {
-        font-size: 2.2rem;
-        font-weight: 700;
-        color: #1e293b;
-        line-height: 1.2;
-    }
+    .metric-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+    .metric-label { font-size: 0.85rem; font-weight: 600; color: #4a5568; margin-bottom: 0.5rem; }
+    .metric-value { font-size: 2.2rem; font-weight: 700; color: #1e293b; line-height: 1.2; }
     .dashboard-title {
-        font-size: 2rem;
-        font-weight: 700;
+        font-size: 2rem; font-weight: 700;
         background: linear-gradient(120deg, #2563eb, #7c3aed);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
+        -webkit-background-clip: text; background-clip: text; color: transparent;
         margin-bottom: 0.5rem;
-        letter-spacing: -0.01em;
     }
     .section-header {
-        font-size: 1.4rem;
-        font-weight: 600;
-        color: #1f2937;
-        border-left: 5px solid #3b82f6;
-        padding-left: 1rem;
+        font-size: 1.4rem; font-weight: 600; color: #1f2937;
+        border-left: 5px solid #3b82f6; padding-left: 1rem;
         margin: 1.5rem 0 1rem 0;
     }
-    .stPlotlyChart {
-        background: white;
-        border-radius: 20px;
-        padding: 0.5rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-    }
-    .stDataFrame {
-        border-radius: 16px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    .stButton button {
-        border-radius: 30px;
-        background-color: #3b82f6;
-        color: white;
-        border: none;
-        font-weight: 500;
-        transition: 0.2s;
-    }
-    .stButton button:hover {
-        background-color: #2563eb;
-        transform: scale(1.02);
-    }
-    hr {
-        margin: 1rem 0;
-        border-color: #e2e8f0;
-    }
+    .stPlotlyChart { background: white; border-radius: 20px; padding: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+    .stDataFrame { border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .stButton button { border-radius: 30px; background-color: #3b82f6; color: white; border: none; font-weight: 500; }
+    .stButton button:hover { background-color: #2563eb; transform: scale(1.02); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -116,25 +64,23 @@ PROVINCE_CENTER_STD = {
     '香港特别行政区': [114.1700, 22.2700], '澳门特别行政区': [113.5400, 22.1900]
 }
 
-# ----------------------------- 品牌标准化映射 -----------------------------
+# ----------------------------- 品牌标准化（强化东芝匹配） -----------------------------
 def standardize_brand(brand_val):
-    """将品牌字段的各种写法统一为标准名称"""
     if pd.isna(brand_val):
         return "未知"
     s = str(brand_val).strip().lower()
     # 小天鹅
     if '小天鹅' in s or 'swan' in s:
         return "小天鹅"
-    # 东芝 (TOSHIBA, 东芝洗衣机等)
+    # 东芝：匹配 东芝、toshiba、东芝洗衣机、东芝冰箱等
     if '东芝' in s or 'toshiba' in s:
         return "东芝"
-    # COLMO (不区分大小写)
+    # COLMO
     if 'colmo' in s or '科摩' in s:
         return "colmo"
-    # 美的 (midea, 美的)
+    # 美的
     if '美的' in s or 'midea' in s:
         return "美的"
-    # 其他保持原样但转为标准大小写
     return brand_val
 
 # ----------------------------- 辅助函数 -----------------------------
@@ -202,13 +148,13 @@ def load_data():
 
     # 统一品牌列并标准化
     for df in [df_main, df_order]:
-        # 优先使用“品牌”列，否则用“意向品牌”，最后默认“未知”
         raw_brand = df.get("品牌", df.get("意向品牌", "未知")).fillna("未知")
         df["品牌"] = raw_brand.apply(standardize_brand)
         df["品类"] = df.get("品类", "未知").fillna("未知")
         df["运营中心"] = df.get("运营中心", df.get("运中", "未知")).fillna("未知")
         df["片区"] = df.get("片区", "未知").fillna("未知")
     
+    # 补全缺失列
     if "外呼状态" not in df_main.columns:
         df_main["外呼状态"] = ""
     if "最新跟进状态" not in df_main.columns:
@@ -248,12 +194,7 @@ def extract_province_from_shengshi(shengshi):
     s = str(shengshi).strip()
     if '-' in s:
         parts = s.split('-')
-        if len(parts) == 2:
-            candidate = parts[0]
-        elif len(parts) >= 3:
-            candidate = parts[1]
-        else:
-            candidate = parts[0]
+        candidate = parts[0] if len(parts) >= 2 else parts[0]
         return normalize_province_name(candidate)
     else:
         return normalize_province_name(s)
@@ -314,6 +255,7 @@ if sel_cat:
 if sel_center:
     df_o = df_o[df_o["运营中心"].isin(sel_center)]
 
+# 调试模式下输出东芝金额详情
 if st.session_state.debug_mode:
     with st.sidebar:
         st.markdown("---")
@@ -321,9 +263,13 @@ if st.session_state.debug_mode:
         st.write(f"原始主表行数: {len(df_main)}")
         st.write(f"最终 df_m 行数: {len(df_m)}")
         st.write(f"订单行数: {len(df_o)}")
-        # 调试东芝金额
         toshiba_amount = df_o[df_o["品牌"] == "东芝"]["订单金额"].sum()
         st.write(f"东芝订单总额（调试）：{toshiba_amount:.2f} 元")
+        if toshiba_amount != 296892:
+            st.warning(f"⚠️ 东芝金额应为 296892 元，实际为 {toshiba_amount:.2f} 元，请检查原始数据")
+            # 显示东芝订单明细
+            toshiba_orders = df_o[df_o["品牌"] == "东芝"][["日期", "订单金额", "品类", "运营中心"]]
+            st.dataframe(toshiba_orders)
 
 # 标题
 st.markdown('<div class="dashboard-title">🏬 天猫新零售数据看板</div>', unsafe_allow_html=True)
@@ -388,12 +334,7 @@ fig_funnel = go.Figure(go.Funnel(
     textposition="inside",
     connector=dict(line=dict(color="grey", width=2))
 ))
-fig_funnel.update_layout(
-    paper_bgcolor='rgba(0,0,0,0)',
-    plot_bgcolor='rgba(0,0,0,0)',
-    font=dict(family="Segoe UI", size=12),
-    margin=dict(l=20, r=20, t=40, b=20)
-)
+fig_funnel.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family="Segoe UI", size=12), margin=dict(l=20, r=20, t=40, b=20))
 st.plotly_chart(fig_funnel, use_container_width=True)
 
 # 转化率趋势
@@ -564,16 +505,8 @@ else:
                 ))
                 fig_map.update_layout(
                     title="气泡大小代表销售额",
-                    geo=dict(
-                        scope='asia',
-                        center=dict(lat=35, lon=105),
-                        projection_scale=1.2,
-                        showland=True,
-                        landcolor='rgb(243,243,243)'
-                    ),
-                    height=600,
-                    margin={"r":0,"t":40,"l":0,"b":0},
-                    paper_bgcolor='rgba(0,0,0,0)'
+                    geo=dict(scope='asia', center=dict(lat=35, lon=105), projection_scale=1.2, showland=True, landcolor='rgb(243,243,243)'),
+                    height=600, margin={"r":0,"t":40,"l":0,"b":0}, paper_bgcolor='rgba(0,0,0,0)'
                 )
                 st.plotly_chart(fig_map, use_container_width=True)
 
