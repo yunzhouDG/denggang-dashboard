@@ -14,17 +14,14 @@ st.set_page_config(layout="wide", page_title="天猫新零售数据看板", page
 # ----------------------------- 自定义CSS美化 -----------------------------
 st.markdown("""
 <style>
-    /* 全局背景与字体 */
     .stApp {
         background-color: #f5f7fb;
         font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
     }
-    /* 侧边栏样式 */
     .css-1d391kg, .css-163ttbj, .eczjsme11 {
         background-color: #ffffff;
         border-right: 1px solid #e6e9f0;
     }
-    /* 指标卡片自定义 */
     .metric-card {
         background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
         border-radius: 20px;
@@ -50,7 +47,6 @@ st.markdown("""
         color: #1e293b;
         line-height: 1.2;
     }
-    /* 标题样式 */
     .dashboard-title {
         font-size: 2rem;
         font-weight: 700;
@@ -69,24 +65,17 @@ st.markdown("""
         padding-left: 1rem;
         margin: 1.5rem 0 1rem 0;
     }
-    /* 图表容器圆角 */
     .stPlotlyChart {
         background: white;
         border-radius: 20px;
         padding: 0.5rem;
         box-shadow: 0 1px 3px rgba(0,0,0,0.03);
     }
-    /* 表格样式 */
     .stDataFrame {
         border-radius: 16px;
         overflow: hidden;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
-    /* 侧边栏筛选框美化 */
-    .css-1p1n2e7, .css-1hynsf2 {
-        border-radius: 12px;
-    }
-    /* 按钮风格 */
     .stButton button {
         border-radius: 30px;
         background-color: #3b82f6;
@@ -106,7 +95,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ----------------------------- 省份中心坐标（备用） -----------------------------
+# ----------------------------- 省份中心坐标 -----------------------------
 PROVINCE_CENTER_STD = {
     '北京市': [116.4074, 39.9042], '上海市': [121.4737, 31.2304],
     '天津市': [117.1902, 39.1256], '重庆市': [106.5044, 29.5582],
@@ -126,6 +115,27 @@ PROVINCE_CENTER_STD = {
     '新疆维吾尔自治区': [87.6168, 43.8256], '台湾省': [121.5200, 25.0300],
     '香港特别行政区': [114.1700, 22.2700], '澳门特别行政区': [113.5400, 22.1900]
 }
+
+# ----------------------------- 品牌标准化映射 -----------------------------
+def standardize_brand(brand_val):
+    """将品牌字段的各种写法统一为标准名称"""
+    if pd.isna(brand_val):
+        return "未知"
+    s = str(brand_val).strip().lower()
+    # 小天鹅
+    if '小天鹅' in s or 'swan' in s:
+        return "小天鹅"
+    # 东芝 (TOSHIBA, 东芝洗衣机等)
+    if '东芝' in s or 'toshiba' in s:
+        return "东芝"
+    # COLMO (不区分大小写)
+    if 'colmo' in s or '科摩' in s:
+        return "colmo"
+    # 美的 (midea, 美的)
+    if '美的' in s or 'midea' in s:
+        return "美的"
+    # 其他保持原样但转为标准大小写
+    return brand_val
 
 # ----------------------------- 辅助函数 -----------------------------
 def apply_brand_filter(df, selected_brands):
@@ -190,11 +200,15 @@ def load_data():
     else:
         df_order["订单金额"] = 0.0
 
+    # 统一品牌列并标准化
     for df in [df_main, df_order]:
-        df["品牌"] = df.get("品牌", df.get("意向品牌", "未知")).fillna("未知")
+        # 优先使用“品牌”列，否则用“意向品牌”，最后默认“未知”
+        raw_brand = df.get("品牌", df.get("意向品牌", "未知")).fillna("未知")
+        df["品牌"] = raw_brand.apply(standardize_brand)
         df["品类"] = df.get("品类", "未知").fillna("未知")
         df["运营中心"] = df.get("运营中心", df.get("运中", "未知")).fillna("未知")
         df["片区"] = df.get("片区", "未知").fillna("未知")
+    
     if "外呼状态" not in df_main.columns:
         df_main["外呼状态"] = ""
     if "最新跟进状态" not in df_main.columns:
@@ -307,12 +321,15 @@ if st.session_state.debug_mode:
         st.write(f"原始主表行数: {len(df_main)}")
         st.write(f"最终 df_m 行数: {len(df_m)}")
         st.write(f"订单行数: {len(df_o)}")
+        # 调试东芝金额
+        toshiba_amount = df_o[df_o["品牌"] == "东芝"]["订单金额"].sum()
+        st.write(f"东芝订单总额（调试）：{toshiba_amount:.2f} 元")
 
-# ===================== 标题 =====================
+# 标题
 st.markdown('<div class="dashboard-title">🏬 天猫新零售数据看板</div>', unsafe_allow_html=True)
 st.markdown(f"<div style='color:#64748b; margin-bottom:1.2rem;'>数据更新至 {max_date}</div>", unsafe_allow_html=True)
 
-# ===================== 指标卡片 =====================
+# 指标卡片
 total_leads = len(df_m)
 valid_mask = df_m["外呼状态"].isin(["高意向", "低意向", "无需外呼"])
 valid_leads = valid_mask.sum()
@@ -350,7 +367,7 @@ with col4:
     </div>
     """, unsafe_allow_html=True)
 
-# ===================== 转化漏斗 =====================
+# 转化漏斗
 st.markdown('<div class="section-header">📉 转化漏斗</div>', unsafe_allow_html=True)
 if "最新跟进状态" in df_m.columns and not df_m.empty:
     assigned = df_m[valid_mask & (df_m["最新跟进状态"] != "未分配")].shape[0]
@@ -379,7 +396,7 @@ fig_funnel.update_layout(
 )
 st.plotly_chart(fig_funnel, use_container_width=True)
 
-# ===================== 转化率趋势 =====================
+# 转化率趋势
 st.markdown('<div class="section-header">📈 转化率趋势</div>', unsafe_allow_html=True)
 
 def map_ratio(r):
@@ -448,7 +465,7 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
 else:
     st.info("无有效日期数据，无法绘制趋势图")
 
-# ===================== 销售额分布 =====================
+# 销售额分布
 st.markdown('<div class="section-header">💰 销售额分布</div>', unsafe_allow_html=True)
 if df_o.empty:
     st.warning("当前筛选条件下无订单数据，无法展示销售额分布")
@@ -477,7 +494,7 @@ else:
         fig3.update_layout(xaxis_tickangle=-45, plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig3, use_container_width=True)
 
-# ===================== 省份销售额分布 =====================
+# 省份销售额分布
 st.markdown('<div class="section-header">🗺️ 省份销售额分布</div>', unsafe_allow_html=True)
 st.caption("左侧：各省份销售额排序（横向柱状图）｜右侧：气泡地图（大小代表销售额）")
 
@@ -560,7 +577,7 @@ else:
                 )
                 st.plotly_chart(fig_map, use_container_width=True)
 
-# ===================== 明细核对 =====================
+# 明细核对
 with st.expander("📄 订单明细（核对总金额）"):
     if not df_o.empty:
         cols_to_show = [c for c in ["日期", "品牌", "品类", "运营中心", "市区", "省市", "订单金额"] if c in df_o.columns]
