@@ -216,11 +216,15 @@ date_range = (start_date, end_date)
 
 col1_s, col2_s = st.sidebar.columns(2)
 with col1_s:
-    sel_brand = st.multiselect("🏷️ 品牌", brand_options, default=actual_brands, placeholder="请选择品牌")
-    sel_cat = st.multiselect("📦 品类", actual_cats, default=actual_cats, placeholder="请选择品类")
+    # 修改：默认不选中任何品牌，显示“请选择品牌”
+    sel_brand = st.multiselect("🏷️ 品牌", brand_options, default=[], placeholder="请选择品牌")
+    # 修改：默认不选中任何品类，显示“请选择品类”
+    sel_cat = st.multiselect("📦 品类", actual_cats, default=[], placeholder="请选择品类")
 with col2_s:
-    sel_area = st.multiselect("🗺️ 片区", actual_areas, default=actual_areas, placeholder="请选择片区")
-    sel_center = st.multiselect("📍 运营中心", actual_centers, default=actual_centers, placeholder="请选择运营中心")
+    # 修改：默认不选中任何片区，显示“请选择片区”
+    sel_area = st.multiselect("🗺️ 片区", actual_areas, default=[], placeholder="请选择片区")
+    # 修改：默认不选中任何运营中心，显示“请选择运营中心”
+    sel_center = st.multiselect("📍 运营中心", actual_centers, default=[], placeholder="请选择运营中心")
 
 def filter_by_date(df, date_range):
     if "日期" not in df.columns or df["日期"].isna().all():
