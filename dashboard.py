@@ -39,7 +39,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 省份中心坐标（已废弃但保留以免报错）
+# 省份中心坐标（仅用于可能的遗留引用，实际未使用）
 PROVINCE_CENTER_STD = {
     '北京市': [116.4074, 39.9042], '上海市': [121.4737, 31.2304],
     '天津市': [117.1902, 39.1256], '重庆市': [106.5044, 29.5582],
@@ -149,8 +149,7 @@ def load_data():
     if "最新跟进状态" not in df_main.columns:
         df_main["最新跟进状态"] = ""
     
-    # ========== 客资表：省份和城市字段（优先使用“省份”“城市”）==========
-    # 省份：优先取“省份”，其次“省市”
+    # 客资表：省份和城市原始字段
     if "省份" in df_main.columns:
         df_main["省份_raw"] = df_main["省份"].fillna("").astype(str).str.strip()
     elif "省市" in df_main.columns:
@@ -158,7 +157,6 @@ def load_data():
     else:
         df_main["省份_raw"] = ""
     
-    # 城市：优先取“城市”，其次“市区”
     if "城市" in df_main.columns:
         df_main["城市_raw"] = df_main["城市"].fillna("").astype(str).str.strip()
     elif "市区" in df_main.columns:
@@ -166,7 +164,7 @@ def load_data():
     else:
         df_main["城市_raw"] = ""
     
-    # ========== 订单表：省份和城市字段（兼容“省份”“省市”“城市”“市区”）==========
+    # 订单表：省份和城市原始字段
     if "省份" in df_order.columns:
         df_order["省份_raw"] = df_order["省份"].fillna("").astype(str).str.strip()
     elif "省市" in df_order.columns:
@@ -183,7 +181,7 @@ def load_data():
 
     return df_main, df_order
 
-# 省份标准化函数
+# 省份名称标准化
 def normalize_province_name(name):
     if not name:
         return None
@@ -204,12 +202,22 @@ def normalize_province_name(name):
         return name + '省'
     return name
 
+# 增强的省份提取函数：支持 "江西省-抚州市" 和 "天猫新零售-广东省-佛山市"
 def extract_province_from_raw(province_raw):
-    """从原始省份字符串中提取标准省份名"""
     if pd.isna(province_raw) or not province_raw:
         return None
-    # 如果已经是完整名称，直接标准化
-    return normalize_province_name(province_raw)
+    s = str(province_raw).strip()
+    if '-' in s:
+        parts = s.split('-')
+        if len(parts) == 2:
+            province_part = parts[0].strip()
+        elif len(parts) >= 3:
+            province_part = parts[1].strip()
+        else:
+            province_part = s
+    else:
+        province_part = s
+    return normalize_province_name(province_part)
 
 # 主程序
 df_main, df_order = load_data()
@@ -217,36 +225,10 @@ if df_main.empty:
     st.error("客资明细表为空，请检查数据源")
     st.stop()
 
-# 提取客资表的标准化省份
+# 提取标准化后的省份和城市
 df_main["省份_客资"] = df_main["省份_raw"].apply(extract_province_from_raw)
-# 如果省份为空但城市有值，尝试通过城市映射补全（简单映射，可扩展）
-def fill_province_by_city(row):
-    if pd.notna(row["省份_客资"]) and row["省份_客资"]:
-        return row["省份_客资"]
-    city = row["城市_raw"]
-    if not city:
-        return None
-    city_province = {
-        "北京": "北京市", "上海": "上海市", "天津": "天津市", "重庆": "重庆市",
-        "广州": "广东省", "深圳": "广东省", "杭州": "浙江省", "宁波": "浙江省",
-        "南京": "江苏省", "苏州": "江苏省", "武汉": "湖北省", "成都": "四川省",
-        "西安": "陕西省", "郑州": "河南省", "长沙": "湖南省", "合肥": "安徽省",
-        "福州": "福建省", "厦门": "福建省", "青岛": "山东省", "济南": "山东省",
-        "沈阳": "辽宁省", "长春": "吉林省", "哈尔滨": "黑龙江省", "昆明": "云南省",
-        "贵阳": "贵州省", "南宁": "广西壮族自治区", "海口": "海南省", "兰州": "甘肃省",
-        "西宁": "青海省", "银川": "宁夏回族自治区", "乌鲁木齐": "新疆维吾尔自治区",
-        "呼和浩特": "内蒙古自治区", "拉萨": "西藏自治区"
-    }
-    for c, p in city_province.items():
-        if city.startswith(c):
-            return p
-    return None
-df_main["省份_客资"] = df_main.apply(fill_province_by_city, axis=1)
-
-# 客资城市直接使用城市_raw
 df_main["城市_客资"] = df_main["城市_raw"]
 
-# 订单表的标准化省份和城市（用于订单金额热力图）
 df_order["省份_订单"] = df_order["省份_raw"].apply(extract_province_from_raw)
 df_order["城市_订单"] = df_order["城市_raw"]
 
@@ -454,19 +436,17 @@ else:
         fig3.update_layout(xaxis_tickangle=-45, plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig3, use_container_width=True)
 
-# ========== 订单金额热力省 & 热力城市 ==========
+# 订单金额热力省 & 热力城市
 st.markdown('<div class="section-header">🗺️ 订单金额热力省 & 热力城市</div>', unsafe_allow_html=True)
 
 if df_o.empty:
     st.info("暂无订单数据，无法绘制省份/城市销售额分布")
 else:
-    # 省份销售额
     province_sale = df_o.groupby("省份_订单")["订单金额"].sum().reset_index()
     province_sale = province_sale[province_sale["省份_订单"].notna() & (province_sale["省份_订单"] != "")]
     province_sale["万元"] = province_sale["订单金额"] / 10000
     province_sale_sorted = province_sale.sort_values("万元", ascending=False)
     
-    # 城市销售额
     city_sale = df_o[df_o["城市_订单"] != ""].groupby("城市_订单")["订单金额"].sum().reset_index()
     city_sale["万元"] = city_sale["订单金额"] / 10000
     city_sale_sorted = city_sale.sort_values("万元", ascending=False).head(20)
@@ -511,18 +491,16 @@ else:
         else:
             st.info("无城市销售额数据")
 
-# ========== 客资数量热力省 & 热力城市 ==========
+# 客资数量热力省 & 热力城市
 st.markdown('<div class="section-header">📊 客资数量热力省 & 热力城市</div>', unsafe_allow_html=True)
 
 if df_m.empty:
     st.info("当前筛选条件下无客资数据")
 else:
-    # 客资省份统计
     province_leads = df_m.groupby("省份_客资").size().reset_index(name="客资数量")
     province_leads = province_leads[province_leads["省份_客资"].notna() & (province_leads["省份_客资"] != "")]
     province_leads_sorted = province_leads.sort_values("客资数量", ascending=False)
     
-    # 客资城市统计
     city_leads = df_m[df_m["城市_客资"] != ""].groupby("城市_客资").size().reset_index(name="客资数量")
     city_leads_sorted = city_leads.sort_values("客资数量", ascending=False).head(20)
     
