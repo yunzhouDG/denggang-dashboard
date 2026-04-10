@@ -39,7 +39,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 省份中心坐标
+# 省份中心坐标（已废弃，但保留以免其他部分报错）
 PROVINCE_CENTER_STD = {
     '北京市': [116.4074, 39.9042], '上海市': [121.4737, 31.2304],
     '天津市': [117.1902, 39.1256], '重庆市': [106.5044, 29.5582],
@@ -149,7 +149,11 @@ def load_data():
     if "最新跟进状态" not in df_main.columns:
         df_main["最新跟进状态"] = ""
     if "市区" not in df_order.columns:
-        df_order["市区"] = ""
+        # 如果订单表中有“城市”列，则重命名为“市区”
+        if "城市" in df_order.columns:
+            df_order["市区"] = df_order["城市"]
+        else:
+            df_order["市区"] = ""
     if "省市" not in df_order.columns:
         df_order["省市"] = ""
 
@@ -216,14 +220,10 @@ date_range = (start_date, end_date)
 
 col1_s, col2_s = st.sidebar.columns(2)
 with col1_s:
-    # 修改：默认不选中任何品牌，显示“请选择品牌”
     sel_brand = st.multiselect("🏷️ 品牌", brand_options, default=[], placeholder="请选择品牌")
-    # 修改：默认不选中任何品类，显示“请选择品类”
     sel_cat = st.multiselect("📦 品类", actual_cats, default=[], placeholder="请选择品类")
 with col2_s:
-    # 修改：默认不选中任何片区，显示“请选择片区”
     sel_area = st.multiselect("🗺️ 片区", actual_areas, default=[], placeholder="请选择片区")
-    # 修改：默认不选中任何运营中心，显示“请选择运营中心”
     sel_center = st.multiselect("📍 运营中心", actual_centers, default=[], placeholder="请选择运营中心")
 
 def filter_by_date(df, date_range):
@@ -372,7 +372,7 @@ if not df_m.empty and "日期" in df_m and not df_m["日期"].isna().all():
 else:
     st.info("无有效日期数据，无法绘制趋势图")
 
-# 销售额分布
+# 销售额分布（品牌、品类、运营中心）
 st.markdown('<div class="section-header">💰 销售额分布</div>', unsafe_allow_html=True)
 if df_o.empty:
     st.warning("当前筛选条件下无订单数据，无法展示销售额分布")
@@ -401,13 +401,13 @@ else:
         fig3.update_layout(xaxis_tickangle=-45, plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig3, use_container_width=True)
 
-# 省份销售额分布
-st.markdown('<div class="section-header">🗺️ 省份销售额分布</div>', unsafe_allow_html=True)
-st.caption("左侧：各省份销售额排序（横向柱状图）｜右侧：气泡地图（大小代表销售额）")
+# ========== 新增：订单金额热力省 + 热力城市（柱状图）==========
+st.markdown('<div class="section-header">🗺️ 订单金额热力省 & 热力城市</div>', unsafe_allow_html=True)
 
 if df_o.empty:
-    st.info("暂无订单数据，无法绘制省份销售额分布")
+    st.info("暂无订单数据，无法绘制省份/城市销售额分布")
 else:
+    # 省份销售额
     if "省市" not in df_o.columns:
         st.error("订单表中缺少'省市'字段，无法按省份统计。")
     else:
@@ -415,15 +415,34 @@ else:
         province_sale = df_o.groupby("省份_std")["订单金额"].sum().reset_index()
         province_sale = province_sale[province_sale["省份_std"].notna() & (province_sale["省份_std"] != "")]
         province_sale["万元"] = province_sale["订单金额"] / 10000
-        
-        if province_sale.empty:
-            st.warning("未能从'省市'字段中提取到有效省份")
+        province_sale_sorted = province_sale.sort_values("万元", ascending=False)
+
+        # 城市销售额：优先使用“市区”列，如果缺失则尝试“城市”
+        city_col = None
+        if "市区" in df_o.columns and df_o["市区"].notna().any():
+            city_col = "市区"
+        elif "城市" in df_o.columns and df_o["城市"].notna().any():
+            city_col = "城市"
         else:
-            province_sale_sorted = province_sale.sort_values("万元", ascending=False)
-            col_left, col_right = st.columns([1, 1])
-            with col_left:
-                st.subheader("📊 各省份销售额排行")
-                fig_bar = px.bar(
+            st.warning("订单表中缺少'市区'或'城市'字段，无法展示城市级别热力柱状图。")
+            city_col = None
+
+        if city_col is not None:
+            # 清洗城市名称：去除前后空格，过滤空值
+            df_o["城市_clean"] = df_o[city_col].astype(str).str.strip()
+            city_sale = df_o[df_o["城市_clean"] != ""].groupby("城市_clean")["订单金额"].sum().reset_index()
+            city_sale["万元"] = city_sale["订单金额"] / 10000
+            city_sale_sorted = city_sale.sort_values("万元", ascending=False).head(20)  # 展示前20城市
+        else:
+            city_sale_sorted = pd.DataFrame(columns=["城市_clean", "万元"])
+
+        # 左右两列：左边省份热力柱状图，右边城市热力柱状图
+        col_prov, col_city = st.columns(2)
+
+        with col_prov:
+            st.subheader("🏆 省份销售额排行（热力柱状图）")
+            if not province_sale_sorted.empty:
+                fig_prov = px.bar(
                     province_sale_sorted,
                     x="万元",
                     y="省份_std",
@@ -434,48 +453,30 @@ else:
                     title="销售额（万元）",
                     labels={"万元": "销售额(万元)", "省份_std": ""}
                 )
-                fig_bar.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-                fig_bar.update_layout(height=600, yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
-                st.plotly_chart(fig_bar, use_container_width=True)
-            with col_right:
-                st.subheader("🗺️ 气泡地图（地理分布）")
-                province_sale["lon"] = province_sale["省份_std"].apply(
-                    lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[0]
-                )
-                province_sale["lat"] = province_sale["省份_std"].apply(
-                    lambda p: PROVINCE_CENTER_STD.get(p, [116.4074, 39.9042])[1]
-                )
-                fig_map = go.Figure()
-                fig_map.add_trace(go.Scattergeo(
-                    lon=province_sale["lon"],
-                    lat=province_sale["lat"],
-                    mode='markers+text',
-                    text=province_sale["省份_std"],
-                    textposition="top center",
-                    textfont=dict(size=11, color="#1f2937"),
-                    marker=dict(
-                        size=province_sale["万元"] / province_sale["万元"].max() * 40 + 10,
-                        color=province_sale["万元"],
-                        colorscale='Blues',
-                        showscale=True,
-                        colorbar=dict(title="销售额(万元)"),
-                        sizemode='area'
-                    ),
-                    hoverinfo='text',
-                    hovertext=province_sale.apply(lambda r: f"{r['省份_std']}<br>销售额: {r['万元']:.2f}万元", axis=1)
-                ))
-                fig_map.update_layout(
-                    title="气泡大小代表销售额",
-                    geo=dict(scope='asia', center=dict(lat=35, lon=105), projection_scale=1.2, showland=True, landcolor='rgb(243,243,243)'),
-                    height=600, margin={"r":0,"t":40,"l":0,"b":0}, paper_bgcolor='rgba(0,0,0,0)'
-                )
-                st.plotly_chart(fig_map, use_container_width=True)
+                fig_prov.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+                fig_prov.update_layout(height=500, yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(fig_prov, use_container_width=True)
+            else:
+                st.info("无省份销售额数据")
 
-# 订单明细
-with st.expander("📄 订单明细（核对总金额）"):
-    if not df_o.empty:
-        cols_to_show = [c for c in ["日期", "品牌", "品类", "运营中心", "市区", "省市", "订单金额"] if c in df_o.columns]
-        st.dataframe(df_o[cols_to_show], use_container_width=True)
-        st.success(f"✅ 订单总金额：{total_amount:,.2f} 元  =  {total_wan:.2f} 万元")
-    else:
-        st.info("无订单明细")
+        with col_city:
+            st.subheader("🏙️ 城市销售额排行 Top20（热力柱状图）")
+            if city_col is not None and not city_sale_sorted.empty:
+                fig_city = px.bar(
+                    city_sale_sorted,
+                    x="万元",
+                    y="城市_clean",
+                    orientation='h',
+                    color="万元",
+                    color_continuous_scale="Oranges",
+                    text="万元",
+                    title="销售额（万元）",
+                    labels={"万元": "销售额(万元)", "城市_clean": ""}
+                )
+                fig_city.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+                fig_city.update_layout(height=500, yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(fig_city, use_container_width=True)
+            else:
+                st.info("无城市销售额数据（请检查订单表中是否包含'市区'或'城市'字段）")
+
+# 注意：原订单明细表格已按要求移除
