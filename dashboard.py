@@ -39,7 +39,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 省份中心坐标（已废弃，但保留以免其他部分报错）
+# 省份中心坐标（已废弃但保留以免报错）
 PROVINCE_CENTER_STD = {
     '北京市': [116.4074, 39.9042], '上海市': [121.4737, 31.2304],
     '天津市': [117.1902, 39.1256], '重庆市': [106.5044, 29.5582],
@@ -148,18 +148,42 @@ def load_data():
         df_main["外呼状态"] = ""
     if "最新跟进状态" not in df_main.columns:
         df_main["最新跟进状态"] = ""
-    if "市区" not in df_order.columns:
-        # 如果订单表中有“城市”列，则重命名为“市区”
-        if "城市" in df_order.columns:
-            df_order["市区"] = df_order["城市"]
-        else:
-            df_order["市区"] = ""
-    if "省市" not in df_order.columns:
-        df_order["省市"] = ""
+    
+    # ========== 客资表：省份和城市字段（优先使用“省份”“城市”）==========
+    # 省份：优先取“省份”，其次“省市”
+    if "省份" in df_main.columns:
+        df_main["省份_raw"] = df_main["省份"].fillna("").astype(str).str.strip()
+    elif "省市" in df_main.columns:
+        df_main["省份_raw"] = df_main["省市"].fillna("").astype(str).str.strip()
+    else:
+        df_main["省份_raw"] = ""
+    
+    # 城市：优先取“城市”，其次“市区”
+    if "城市" in df_main.columns:
+        df_main["城市_raw"] = df_main["城市"].fillna("").astype(str).str.strip()
+    elif "市区" in df_main.columns:
+        df_main["城市_raw"] = df_main["市区"].fillna("").astype(str).str.strip()
+    else:
+        df_main["城市_raw"] = ""
+    
+    # ========== 订单表：省份和城市字段（兼容“省份”“省市”“城市”“市区”）==========
+    if "省份" in df_order.columns:
+        df_order["省份_raw"] = df_order["省份"].fillna("").astype(str).str.strip()
+    elif "省市" in df_order.columns:
+        df_order["省份_raw"] = df_order["省市"].fillna("").astype(str).str.strip()
+    else:
+        df_order["省份_raw"] = ""
+    
+    if "城市" in df_order.columns:
+        df_order["城市_raw"] = df_order["城市"].fillna("").astype(str).str.strip()
+    elif "市区" in df_order.columns:
+        df_order["城市_raw"] = df_order["市区"].fillna("").astype(str).str.strip()
+    else:
+        df_order["城市_raw"] = ""
 
     return df_main, df_order
 
-# 省份提取
+# 省份标准化函数
 def normalize_province_name(name):
     if not name:
         return None
@@ -180,22 +204,51 @@ def normalize_province_name(name):
         return name + '省'
     return name
 
-def extract_province_from_shengshi(shengshi):
-    if pd.isna(shengshi) or not shengshi:
+def extract_province_from_raw(province_raw):
+    """从原始省份字符串中提取标准省份名"""
+    if pd.isna(province_raw) or not province_raw:
         return None
-    s = str(shengshi).strip()
-    if '-' in s:
-        parts = s.split('-')
-        candidate = parts[0] if len(parts) >= 2 else parts[0]
-        return normalize_province_name(candidate)
-    else:
-        return normalize_province_name(s)
+    # 如果已经是完整名称，直接标准化
+    return normalize_province_name(province_raw)
 
 # 主程序
 df_main, df_order = load_data()
 if df_main.empty:
     st.error("客资明细表为空，请检查数据源")
     st.stop()
+
+# 提取客资表的标准化省份
+df_main["省份_客资"] = df_main["省份_raw"].apply(extract_province_from_raw)
+# 如果省份为空但城市有值，尝试通过城市映射补全（简单映射，可扩展）
+def fill_province_by_city(row):
+    if pd.notna(row["省份_客资"]) and row["省份_客资"]:
+        return row["省份_客资"]
+    city = row["城市_raw"]
+    if not city:
+        return None
+    city_province = {
+        "北京": "北京市", "上海": "上海市", "天津": "天津市", "重庆": "重庆市",
+        "广州": "广东省", "深圳": "广东省", "杭州": "浙江省", "宁波": "浙江省",
+        "南京": "江苏省", "苏州": "江苏省", "武汉": "湖北省", "成都": "四川省",
+        "西安": "陕西省", "郑州": "河南省", "长沙": "湖南省", "合肥": "安徽省",
+        "福州": "福建省", "厦门": "福建省", "青岛": "山东省", "济南": "山东省",
+        "沈阳": "辽宁省", "长春": "吉林省", "哈尔滨": "黑龙江省", "昆明": "云南省",
+        "贵阳": "贵州省", "南宁": "广西壮族自治区", "海口": "海南省", "兰州": "甘肃省",
+        "西宁": "青海省", "银川": "宁夏回族自治区", "乌鲁木齐": "新疆维吾尔自治区",
+        "呼和浩特": "内蒙古自治区", "拉萨": "西藏自治区"
+    }
+    for c, p in city_province.items():
+        if city.startswith(c):
+            return p
+    return None
+df_main["省份_客资"] = df_main.apply(fill_province_by_city, axis=1)
+
+# 客资城市直接使用城市_raw
+df_main["城市_客资"] = df_main["城市_raw"]
+
+# 订单表的标准化省份和城市（用于订单金额热力图）
+df_order["省份_订单"] = df_order["省份_raw"].apply(extract_province_from_raw)
+df_order["城市_订单"] = df_order["城市_raw"]
 
 # 获取可选项
 all_brands = set(df_main["品牌"].dropna().unique()) | set(df_order["品牌"].dropna().unique())
@@ -401,82 +454,114 @@ else:
         fig3.update_layout(xaxis_tickangle=-45, plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig3, use_container_width=True)
 
-# ========== 新增：订单金额热力省 + 热力城市（柱状图）==========
+# ========== 订单金额热力省 & 热力城市 ==========
 st.markdown('<div class="section-header">🗺️ 订单金额热力省 & 热力城市</div>', unsafe_allow_html=True)
 
 if df_o.empty:
     st.info("暂无订单数据，无法绘制省份/城市销售额分布")
 else:
     # 省份销售额
-    if "省市" not in df_o.columns:
-        st.error("订单表中缺少'省市'字段，无法按省份统计。")
-    else:
-        df_o["省份_std"] = df_o["省市"].apply(extract_province_from_shengshi)
-        province_sale = df_o.groupby("省份_std")["订单金额"].sum().reset_index()
-        province_sale = province_sale[province_sale["省份_std"].notna() & (province_sale["省份_std"] != "")]
-        province_sale["万元"] = province_sale["订单金额"] / 10000
-        province_sale_sorted = province_sale.sort_values("万元", ascending=False)
-
-        # 城市销售额：优先使用“市区”列，如果缺失则尝试“城市”
-        city_col = None
-        if "市区" in df_o.columns and df_o["市区"].notna().any():
-            city_col = "市区"
-        elif "城市" in df_o.columns and df_o["城市"].notna().any():
-            city_col = "城市"
+    province_sale = df_o.groupby("省份_订单")["订单金额"].sum().reset_index()
+    province_sale = province_sale[province_sale["省份_订单"].notna() & (province_sale["省份_订单"] != "")]
+    province_sale["万元"] = province_sale["订单金额"] / 10000
+    province_sale_sorted = province_sale.sort_values("万元", ascending=False)
+    
+    # 城市销售额
+    city_sale = df_o[df_o["城市_订单"] != ""].groupby("城市_订单")["订单金额"].sum().reset_index()
+    city_sale["万元"] = city_sale["订单金额"] / 10000
+    city_sale_sorted = city_sale.sort_values("万元", ascending=False).head(20)
+    
+    col_prov, col_city = st.columns(2)
+    with col_prov:
+        st.subheader("🏆 省份销售额排行（热力柱状图）")
+        if not province_sale_sorted.empty:
+            fig_prov = px.bar(
+                province_sale_sorted,
+                x="万元",
+                y="省份_订单",
+                orientation='h',
+                color="万元",
+                color_continuous_scale="Blues",
+                text="万元",
+                title="销售额（万元）",
+                labels={"万元": "销售额(万元)", "省份_订单": ""}
+            )
+            fig_prov.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+            fig_prov.update_layout(height=500, yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_prov, use_container_width=True)
         else:
-            st.warning("订单表中缺少'市区'或'城市'字段，无法展示城市级别热力柱状图。")
-            city_col = None
-
-        if city_col is not None:
-            # 清洗城市名称：去除前后空格，过滤空值
-            df_o["城市_clean"] = df_o[city_col].astype(str).str.strip()
-            city_sale = df_o[df_o["城市_clean"] != ""].groupby("城市_clean")["订单金额"].sum().reset_index()
-            city_sale["万元"] = city_sale["订单金额"] / 10000
-            city_sale_sorted = city_sale.sort_values("万元", ascending=False).head(20)  # 展示前20城市
+            st.info("无省份销售额数据")
+    with col_city:
+        st.subheader("🏙️ 城市销售额排行 Top20（热力柱状图）")
+        if not city_sale_sorted.empty:
+            fig_city = px.bar(
+                city_sale_sorted,
+                x="万元",
+                y="城市_订单",
+                orientation='h',
+                color="万元",
+                color_continuous_scale="Oranges",
+                text="万元",
+                title="销售额（万元）",
+                labels={"万元": "销售额(万元)", "城市_订单": ""}
+            )
+            fig_city.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+            fig_city.update_layout(height=500, yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_city, use_container_width=True)
         else:
-            city_sale_sorted = pd.DataFrame(columns=["城市_clean", "万元"])
+            st.info("无城市销售额数据")
 
-        # 左右两列：左边省份热力柱状图，右边城市热力柱状图
-        col_prov, col_city = st.columns(2)
+# ========== 客资数量热力省 & 热力城市 ==========
+st.markdown('<div class="section-header">📊 客资数量热力省 & 热力城市</div>', unsafe_allow_html=True)
 
-        with col_prov:
-            st.subheader("🏆 省份销售额排行（热力柱状图）")
-            if not province_sale_sorted.empty:
-                fig_prov = px.bar(
-                    province_sale_sorted,
-                    x="万元",
-                    y="省份_std",
-                    orientation='h',
-                    color="万元",
-                    color_continuous_scale="Blues",
-                    text="万元",
-                    title="销售额（万元）",
-                    labels={"万元": "销售额(万元)", "省份_std": ""}
-                )
-                fig_prov.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-                fig_prov.update_layout(height=500, yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
-                st.plotly_chart(fig_prov, use_container_width=True)
-            else:
-                st.info("无省份销售额数据")
-
-        with col_city:
-            st.subheader("🏙️ 城市销售额排行 Top20（热力柱状图）")
-            if city_col is not None and not city_sale_sorted.empty:
-                fig_city = px.bar(
-                    city_sale_sorted,
-                    x="万元",
-                    y="城市_clean",
-                    orientation='h',
-                    color="万元",
-                    color_continuous_scale="Oranges",
-                    text="万元",
-                    title="销售额（万元）",
-                    labels={"万元": "销售额(万元)", "城市_clean": ""}
-                )
-                fig_city.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-                fig_city.update_layout(height=500, yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
-                st.plotly_chart(fig_city, use_container_width=True)
-            else:
-                st.info("无城市销售额数据（请检查订单表中是否包含'市区'或'城市'字段）")
-
-# 注意：原订单明细表格已按要求移除
+if df_m.empty:
+    st.info("当前筛选条件下无客资数据")
+else:
+    # 客资省份统计
+    province_leads = df_m.groupby("省份_客资").size().reset_index(name="客资数量")
+    province_leads = province_leads[province_leads["省份_客资"].notna() & (province_leads["省份_客资"] != "")]
+    province_leads_sorted = province_leads.sort_values("客资数量", ascending=False)
+    
+    # 客资城市统计
+    city_leads = df_m[df_m["城市_客资"] != ""].groupby("城市_客资").size().reset_index(name="客资数量")
+    city_leads_sorted = city_leads.sort_values("客资数量", ascending=False).head(20)
+    
+    col_leads_prov, col_leads_city = st.columns(2)
+    with col_leads_prov:
+        st.subheader("🏆 省份客资排行（热力柱状图）")
+        if not province_leads_sorted.empty:
+            fig_leads_prov = px.bar(
+                province_leads_sorted,
+                x="客资数量",
+                y="省份_客资",
+                orientation='h',
+                color="客资数量",
+                color_continuous_scale="Greens",
+                text="客资数量",
+                title="客资数量",
+                labels={"客资数量": "客资数", "省份_客资": ""}
+            )
+            fig_leads_prov.update_traces(texttemplate='%{text:,}', textposition='outside')
+            fig_leads_prov.update_layout(height=500, yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_leads_prov, use_container_width=True)
+        else:
+            st.info("无省份客资数据")
+    with col_leads_city:
+        st.subheader("🏙️ 城市客资排行 Top20（热力柱状图）")
+        if not city_leads_sorted.empty:
+            fig_leads_city = px.bar(
+                city_leads_sorted,
+                x="客资数量",
+                y="城市_客资",
+                orientation='h',
+                color="客资数量",
+                color_continuous_scale="Tealgrn",
+                text="客资数量",
+                title="客资数量",
+                labels={"客资数量": "客资数", "城市_客资": ""}
+            )
+            fig_leads_city.update_traces(texttemplate='%{text:,}', textposition='outside')
+            fig_leads_city.update_layout(height=500, yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_leads_city, use_container_width=True)
+        else:
+            st.info("无城市客资数据")
