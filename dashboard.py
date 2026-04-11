@@ -54,6 +54,27 @@ STANDARD_PROVINCES = {
     '香港特别行政区', '澳门特别行政区'
 }
 
+# 省份中心坐标（用于气泡地图）
+PROVINCE_CENTER = {
+    '北京市': [116.4074, 39.9042], '上海市': [121.4737, 31.2304],
+    '天津市': [117.1902, 39.1256], '重庆市': [106.5044, 29.5582],
+    '河北省': [114.4995, 38.1006], '山西省': [112.5624, 37.8735],
+    '内蒙古自治区': [111.7510, 40.8415], '辽宁省': [123.4315, 41.8057],
+    '吉林省': [125.3235, 43.8171], '黑龙江省': [126.5364, 45.8022],
+    '江苏省': [118.7674, 32.0415], '浙江省': [120.1551, 30.2741],
+    '安徽省': [117.2272, 31.8206], '福建省': [119.2965, 26.0745],
+    '江西省': [115.8582, 28.6820], '山东省': [117.0009, 36.6758],
+    '河南省': [113.6254, 34.7466], '湖北省': [114.3055, 30.5931],
+    '湖南省': [112.9388, 28.2282], '广东省': [113.2644, 23.1291],
+    '广西壮族自治区': [108.3661, 22.8176], '海南省': [110.1999, 20.0440],
+    '四川省': [104.0668, 30.5728], '贵州省': [106.6302, 26.6477],
+    '云南省': [102.8329, 24.8801], '西藏自治区': [91.1409, 29.6565],
+    '陕西省': [108.9402, 34.3416], '甘肃省': [103.8343, 36.0611],
+    '青海省': [101.7782, 36.6232], '宁夏回族自治区': [106.2309, 38.4872],
+    '新疆维吾尔自治区': [87.6168, 43.8256], '台湾省': [121.5200, 25.0300],
+    '香港特别行政区': [114.1700, 22.2700], '澳门特别行政区': [113.5400, 22.1900]
+}
+
 # ==================== 辅助函数 ====================
 def standardize_brand(brand_val):
     if pd.isna(brand_val):
@@ -158,6 +179,7 @@ def load_data():
     # 日期处理
     if "获取时间" in df_main.columns:
         df_main["日期"] = pd.to_datetime(df_main["获取时间"], errors="coerce")
+        df_main["获取时间_原始"] = df_main["获取时间"]  # 保留原始时间用于小时提取
     elif "日期" in df_main.columns:
         df_main["日期"] = pd.to_datetime(df_main["日期"], errors="coerce")
     else:
@@ -452,12 +474,11 @@ if not df_m_curr.empty and "日期" in df_m_curr and not df_m_curr["日期"].isn
 else:
     st.info("无有效日期数据，无法绘制趋势图")
 
-# ==================== 销售额分布（新增品牌占比饼图） ====================
+# ==================== 销售额分布 ====================
 st.markdown('<div class="section-header">💰 销售额分布</div>', unsafe_allow_html=True)
 if df_o_curr.empty:
     st.warning("当前筛选条件下无订单数据，无法展示销售额分布")
 else:
-    # 品牌销售额 Top10 柱状图 + 品牌销售额占比饼图（Top10 + 其他）
     brand_sale_all = df_o_curr.groupby("品牌")["订单金额"].sum().reset_index()
     brand_sale_all = brand_sale_all.sort_values("订单金额", ascending=False)
     top10_brands = brand_sale_all.head(10)
@@ -467,11 +488,9 @@ else:
         brand_pie_data = pd.concat([brand_pie_data, pd.DataFrame([{"品牌": "其他", "订单金额": other_amount}])], ignore_index=True)
     brand_pie_data["万元"] = brand_pie_data["订单金额"] / 10000
 
-    # 品类销售额占比（不变）
     cat_sale = df_o_curr.groupby("品类")["订单金额"].sum().reset_index()
     cat_sale["万元"] = cat_sale["订单金额"] / 10000
 
-    # 运营中心销售额柱状图（不变）
     center_sale = df_o_curr.groupby("运营中心")["订单金额"].sum().reset_index()
     center_sale["万元"] = center_sale["订单金额"] / 10000
 
@@ -500,7 +519,7 @@ else:
         fig_center.update_layout(xaxis_tickangle=-45, plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig_center, use_container_width=True)
 
-# ==================== 订单金额热力省 & 热力城市（Top20，过滤脏数据） ====================
+# ==================== 订单金额热力省 & 热力城市 ====================
 st.markdown('<div class="section-header">🗺️ 订单金额热力省 & 热力城市</div>', unsafe_allow_html=True)
 
 if df_o_curr.empty:
@@ -556,7 +575,7 @@ else:
         else:
             st.info("无城市销售额数据")
 
-# ==================== 客资数量热力省 & 热力城市（Top20，过滤脏数据） ====================
+# ==================== 客资数量热力省 & 热力城市 ====================
 st.markdown('<div class="section-header">📊 客资数量热力省 & 热力城市</div>', unsafe_allow_html=True)
 
 if df_m_curr.empty:
@@ -609,3 +628,102 @@ else:
             st.plotly_chart(fig_leads_city, use_container_width=True)
         else:
             st.info("无城市客资数据")
+
+# ==================== 新增图表（不修改原有内容） ====================
+st.markdown('<div class="section-header">📊 高级分析</div>', unsafe_allow_html=True)
+
+# 1. 星期趋势分析
+st.markdown("### 📅 星期趋势分析")
+if not df_m_curr.empty and "日期" in df_m_curr and not df_m_curr["日期"].isna().all():
+    df_m_curr["星期"] = df_m_curr["日期"].dt.dayofweek
+    df_o_curr["星期"] = df_o_curr["日期"].dt.dayofweek
+    week_order = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+    leads_week = df_m_curr.groupby("星期").size().reindex(range(7), fill_value=0).reset_index(name="客资量")
+    orders_week = df_o_curr.groupby("星期").size().reindex(range(7), fill_value=0).reset_index(name="订单量")
+    week_df = leads_week.merge(orders_week, on="星期")
+    week_df["星期名称"] = week_df["星期"].apply(lambda x: week_order[x])
+    fig_week = go.Figure()
+    fig_week.add_trace(go.Bar(x=week_df["星期名称"], y=week_df["客资量"], name="客资量", marker_color='#3b82f6'))
+    fig_week.add_trace(go.Scatter(x=week_df["星期名称"], y=week_df["订单量"], name="订单量", yaxis="y2", marker_color='#ef4444', mode='lines+markers'))
+    fig_week.update_layout(
+        title="客资与订单星期分布",
+        xaxis=dict(title="星期"),
+        yaxis=dict(title="客资量", side="left"),
+        yaxis2=dict(title="订单量", overlaying="y", side="right"),
+        plot_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig_week, use_container_width=True)
+else:
+    st.info("无日期数据，无法绘制星期趋势")
+
+# 2. 小时趋势分析（如果存在获取时间字段）
+st.markdown("### ⏰ 小时趋势分析")
+if "获取时间_原始" in df_main.columns and not df_main["获取时间_原始"].isna().all():
+    df_m_curr["小时"] = pd.to_datetime(df_m_curr["获取时间_原始"], errors="coerce").dt.hour
+    hour_leads = df_m_curr.groupby("小时").size().reset_index(name="客资量")
+    hour_leads = hour_leads[hour_leads["小时"].notna()]
+    fig_hour = px.bar(hour_leads, x="小时", y="客资量", title="客资获取小时分布",
+                      labels={"小时": "小时", "客资量": "客资数量"},
+                      color_discrete_sequence=['#10b981'])
+    fig_hour.update_layout(plot_bgcolor='rgba(0,0,0,0)')
+    st.plotly_chart(fig_hour, use_container_width=True)
+else:
+    st.info("无精确时间字段，无法绘制小时趋势")
+
+# 3. 客单价分布直方图
+st.markdown("### 💵 客单价分布（订单金额区间）")
+if not df_o_curr.empty:
+    fig_hist = px.histogram(df_o_curr, x="订单金额", nbins=30, title="订单金额分布（元）",
+                            labels={"订单金额": "订单金额（元）"}, color_discrete_sequence=['#10b981'])
+    fig_hist.update_layout(plot_bgcolor='rgba(0,0,0,0)', bargap=0.05)
+    st.plotly_chart(fig_hist, use_container_width=True)
+else:
+    st.info("无订单数据，无法展示客单价分布")
+
+# 4. 省份销售额帕累托图（基于前面已计算的 province_sale_sorted）
+st.markdown("### 📈 省份销售额帕累托分析")
+if not df_o_curr.empty and 'province_sale_sorted' in locals() and not province_sale_sorted.empty:
+    province_pareto = province_sale_sorted.copy()
+    province_pareto["累计百分比"] = province_pareto["万元"].cumsum() / province_pareto["万元"].sum() * 100
+    fig_pareto = go.Figure()
+    fig_pareto.add_trace(go.Bar(x=province_pareto["省份_订单"], y=province_pareto["万元"], name="销售额(万元)", marker_color='#3b82f6'))
+    fig_pareto.add_trace(go.Scatter(x=province_pareto["省份_订单"], y=province_pareto["累计百分比"], name="累计百分比", yaxis="y2", marker_color='#ef4444', mode='lines+markers'))
+    fig_pareto.update_layout(
+        title="省份销售额帕累托图（累计贡献率）",
+        xaxis=dict(title="省份", tickangle=45),
+        yaxis=dict(title="销售额(万元)", side="left"),
+        yaxis2=dict(title="累计百分比 (%)", overlaying="y", side="right", range=[0, 110]),
+        plot_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig_pareto, use_container_width=True)
+else:
+    st.info("无足够的省份销售额数据，无法绘制帕累托图")
+
+# 5. 地理热力地图（气泡地图）
+st.markdown("### 🗺️ 地理热力地图（省份销售额气泡图）")
+if not df_o_curr.empty and 'province_sale' in locals() and not province_sale.empty:
+    # 合并坐标
+    map_df = province_sale.copy()
+    map_df["经度"] = map_df["省份_订单"].apply(lambda x: PROVINCE_CENTER.get(x, [None, None])[0])
+    map_df["纬度"] = map_df["省份_订单"].apply(lambda x: PROVINCE_CENTER.get(x, [None, None])[1])
+    map_df = map_df.dropna(subset=["经度", "纬度"])
+    if not map_df.empty:
+        fig_map = px.scatter_geo(
+            map_df,
+            lon="经度",
+            lat="纬度",
+            size="万元",
+            hover_name="省份_订单",
+            text="省份_订单",
+            size_max=60,
+            projection="natural earth",
+            title="省份销售额气泡地图（气泡大小代表销售额万元）",
+            color="万元",
+            color_continuous_scale="Viridis"
+        )
+        fig_map.update_layout(geo=dict(showframe=False, showcoastlines=True, projection_type='natural earth'))
+        st.plotly_chart(fig_map, use_container_width=True)
+    else:
+        st.info("无法匹配省份坐标，无法绘制地理地图")
+else:
+    st.info("无省份销售额数据，无法绘制地理地图")
