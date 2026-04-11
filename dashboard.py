@@ -43,6 +43,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ==================== 标准省份列表（用于过滤脏数据） ====================
+STANDARD_PROVINCES = {
+    '北京市', '上海市', '天津市', '重庆市',
+    '河北省', '山西省', '辽宁省', '吉林省', '黑龙江省',
+    '江苏省', '浙江省', '安徽省', '福建省', '江西省', '山东省',
+    '河南省', '湖北省', '湖南省', '广东省', '海南省', '四川省',
+    '贵州省', '云南省', '陕西省', '甘肃省', '青海省', '台湾省',
+    '内蒙古自治区', '广西壮族自治区', '西藏自治区', '宁夏回族自治区', '新疆维吾尔自治区',
+    '香港特别行政区', '澳门特别行政区'
+}
+
 # ==================== 辅助函数 ====================
 def standardize_brand(brand_val):
     if pd.isna(brand_val):
@@ -82,6 +93,7 @@ def filter_by_date(df, date_range):
     return df[(df["日期"].dt.date >= d_start) & (df["日期"].dt.date <= d_end)]
 
 def normalize_province_name(name):
+    """将常见省份简称统一为标准名称"""
     if not name:
         return None
     name = str(name).strip()
@@ -102,6 +114,12 @@ def normalize_province_name(name):
     return name
 
 def extract_province_from_raw(province_raw):
+    """
+    提取省份名称：
+    - 若包含两个 '-'，取中间部分（例如 "天猫新零售-广东省-广州市" -> "广东省"）
+    - 若只包含一个 '-'，取前面部分（例如 "广东省-广州市" -> "广东省"）
+    - 若无 '-'，直接输出原字符串
+    """
     if pd.isna(province_raw) or not province_raw:
         return None
     s = str(province_raw).strip()
@@ -265,7 +283,7 @@ if df_main.empty:
     st.error("客资明细表为空，请检查数据源")
     st.stop()
 
-# 提取标准化后的省份和城市
+# 提取标准化后的省份和城市（使用增强的提取函数）
 df_main["省份_客资"] = df_main["省份_raw"].apply(extract_province_from_raw)
 df_main["城市_客资"] = df_main["城市_raw"]
 df_order["省份_订单"] = df_order["省份_raw"].apply(extract_province_from_raw)
@@ -473,24 +491,27 @@ else:
         fig3.update_layout(xaxis_tickangle=-45, plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig3, use_container_width=True)
 
-# ==================== 订单金额热力省 & 热力城市 ====================
+# ==================== 订单金额热力省 & 热力城市（Top20，过滤脏数据） ====================
 st.markdown('<div class="section-header">🗺️ 订单金额热力省 & 热力城市</div>', unsafe_allow_html=True)
 
 if df_o_curr.empty:
     st.info("暂无订单数据，无法绘制省份/城市销售额分布")
 else:
+    # 省份销售额（取前20，并过滤非标准省份）
     province_sale = df_o_curr.groupby("省份_订单")["订单金额"].sum().reset_index()
     province_sale = province_sale[province_sale["省份_订单"].notna() & (province_sale["省份_订单"] != "")]
+    province_sale = province_sale[province_sale["省份_订单"].isin(STANDARD_PROVINCES)]
     province_sale["万元"] = province_sale["订单金额"] / 10000
-    province_sale_sorted = province_sale.sort_values("万元", ascending=False)
+    province_sale_sorted = province_sale.sort_values("万元", ascending=False).head(20)
 
+    # 城市销售额（取前20）
     city_sale = df_o_curr[df_o_curr["城市_订单"] != ""].groupby("城市_订单")["订单金额"].sum().reset_index()
     city_sale["万元"] = city_sale["订单金额"] / 10000
     city_sale_sorted = city_sale.sort_values("万元", ascending=False).head(20)
 
     col_prov, col_city = st.columns(2)
     with col_prov:
-        st.subheader("🏆 省份销售额排行（热力柱状图）")
+        st.subheader("🏆 省份销售额排行 Top20（热力柱状图）")
         if not province_sale_sorted.empty:
             fig_prov = px.bar(
                 province_sale_sorted,
@@ -507,7 +528,7 @@ else:
             fig_prov.update_layout(height=500, yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_prov, use_container_width=True)
         else:
-            st.info("无省份销售额数据")
+            st.info("无符合条件省份的销售额数据")
     with col_city:
         st.subheader("🏙️ 城市销售额排行 Top20（热力柱状图）")
         if not city_sale_sorted.empty:
@@ -528,22 +549,25 @@ else:
         else:
             st.info("无城市销售额数据")
 
-# ==================== 客资数量热力省 & 热力城市 ====================
+# ==================== 客资数量热力省 & 热力城市（Top20，过滤脏数据） ====================
 st.markdown('<div class="section-header">📊 客资数量热力省 & 热力城市</div>', unsafe_allow_html=True)
 
 if df_m_curr.empty:
     st.info("当前筛选条件下无客资数据")
 else:
+    # 省份客资（取前20，并过滤非标准省份）
     province_leads = df_m_curr.groupby("省份_客资").size().reset_index(name="客资数量")
     province_leads = province_leads[province_leads["省份_客资"].notna() & (province_leads["省份_客资"] != "")]
-    province_leads_sorted = province_leads.sort_values("客资数量", ascending=False)
+    province_leads = province_leads[province_leads["省份_客资"].isin(STANDARD_PROVINCES)]
+    province_leads_sorted = province_leads.sort_values("客资数量", ascending=False).head(20)
 
+    # 城市客资（取前20）
     city_leads = df_m_curr[df_m_curr["城市_客资"] != ""].groupby("城市_客资").size().reset_index(name="客资数量")
     city_leads_sorted = city_leads.sort_values("客资数量", ascending=False).head(20)
 
     col_leads_prov, col_leads_city = st.columns(2)
     with col_leads_prov:
-        st.subheader("🏆 省份客资排行（热力柱状图）")
+        st.subheader("🏆 省份客资排行 Top20（热力柱状图）")
         if not province_leads_sorted.empty:
             fig_leads_prov = px.bar(
                 province_leads_sorted,
@@ -560,7 +584,7 @@ else:
             fig_leads_prov.update_layout(height=500, yaxis={'categoryorder':'total ascending'}, plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_leads_prov, use_container_width=True)
         else:
-            st.info("无省份客资数据")
+            st.info("无符合条件省份的客资数据")
     with col_leads_city:
         st.subheader("🏙️ 城市客资排行 Top20（热力柱状图）")
         if not city_leads_sorted.empty:
