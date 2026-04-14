@@ -460,36 +460,45 @@ with c4:
     </div>
     """, unsafe_allow_html=True)
 
-# ========== 第一行：日客资数趋势 + 转化漏斗 ==========
-col_left, col_right = st.columns([3, 2])
-with col_left:
-    st.markdown('<div class="section-header">📅 日客资数趋势</div>', unsafe_allow_html=True)
-    if not df_m_curr.empty and "日期" in df_m_curr:
-        daily_leads = df_m_curr.groupby(df_m_curr["日期"].dt.date).size().reset_index(name="客资数")
-        daily_leads["日期_中文"] = daily_leads["日期"].apply(lambda d: d.strftime("%m-%d"))
-        fig_daily = px.bar(daily_leads, x="日期_中文", y="客资数", text="客资数",
-                           color_discrete_sequence=['#3b82f6'], title="每日客资数量")
-        fig_daily.update_traces(texttemplate='%{text:,}', textposition='outside')
-        fig_daily.update_layout(plot_bgcolor='rgba(0,0,0,0)', xaxis_tickangle=45, margin=dict(l=20, r=20, t=40, b=20))
-        st.plotly_chart(fig_daily, use_container_width=True)
-    else:
-        st.info("无日期数据")
-with col_right:
-    st.markdown('<div class="section-header">📉 转化漏斗</div>', unsafe_allow_html=True)
-    # 计算已分配/已跟进
-    valid_mask_curr = df_m_curr["外呼状态"].isin(["高意向", "低意向", "无需外呼"])
-    assigned = df_m_curr[valid_mask_curr & (df_m_curr["最新跟进状态"] != "未分配")].shape[0] if "最新跟进状态" in df_m_curr else 0
-    followed = df_m_curr[valid_mask_curr & (~df_m_curr["最新跟进状态"].isin(["未分配", "待查看", "待联系"]))].shape[0] if "最新跟进状态" in df_m_curr else 0
-    funnel_labels = ["总客资", "有效客资", "已分配", "已跟进", "成交"]
-    funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
-    fig_funnel = go.Figure(go.Funnel(
-        y=funnel_labels, x=funnel_values, marker=dict(color=['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd']),
-        textinfo="value", texttemplate='%{value:,.0f}', textposition="inside"
-    ))
-    fig_funnel.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=30, b=10))
-    st.plotly_chart(fig_funnel, use_container_width=True)
+# ========== 第一行：日客资数趋势（单独一行，放大显示） ==========
+st.markdown('<div class="section-header">📅 日客资数趋势</div>', unsafe_allow_html=True)
+if not df_m_curr.empty and "日期" in df_m_curr:
+    daily_leads = df_m_curr.groupby(df_m_curr["日期"].dt.date).size().reset_index(name="客资数")
+    daily_leads["日期_中文"] = daily_leads["日期"].apply(lambda d: d.strftime("%m-%d"))
+    fig_daily = px.bar(daily_leads, x="日期_中文", y="客资数", text="客资数",
+                       color_discrete_sequence=['#3b82f6'], title="每日客资数量")
+    fig_daily.update_traces(texttemplate='%{text:,}', textposition='outside')
+    # 调整布局：增大高度、旋转横坐标标签、留出足够边距
+    fig_daily.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        xaxis_tickangle=-30,
+        height=500,
+        margin=dict(l=20, r=20, t=40, b=80)
+    )
+    st.plotly_chart(fig_daily, use_container_width=True)
+else:
+    st.info("无日期数据")
 
-# ========== 第二行：品牌客资与订单金额对比 + 各运营中心客资量 TOP10 ==========
+# ========== 第二行：转化漏斗（单独一行） ==========
+st.markdown('<div class="section-header">📉 转化漏斗</div>', unsafe_allow_html=True)
+valid_mask_curr = df_m_curr["外呼状态"].isin(["高意向", "低意向", "无需外呼"])
+assigned = df_m_curr[valid_mask_curr & (df_m_curr["最新跟进状态"] != "未分配")].shape[0] if "最新跟进状态" in df_m_curr else 0
+followed = df_m_curr[valid_mask_curr & (~df_m_curr["最新跟进状态"].isin(["未分配", "待查看", "待联系"]))].shape[0] if "最新跟进状态" in df_m_curr else 0
+funnel_labels = ["总客资", "有效客资", "已分配", "已跟进", "成交"]
+funnel_values = [total_leads, valid_leads, assigned, followed, order_count]
+fig_funnel = go.Figure(go.Funnel(
+    y=funnel_labels, x=funnel_values, marker=dict(color=['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd']),
+    textinfo="value", texttemplate='%{value:,.0f}', textposition="inside"
+))
+fig_funnel.update_layout(
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(0,0,0,0)',
+    margin=dict(l=10, r=10, t=30, b=10),
+    height=400
+)
+st.plotly_chart(fig_funnel, use_container_width=True)
+
+# ========== 第三行：品牌客资与订单金额对比 + 各运营中心客资量 TOP10 ==========
 col_a, col_b = st.columns(2)
 with col_a:
     st.markdown('<div class="section-header">🏷️ 品牌客资量与订单金额对比</div>', unsafe_allow_html=True)
@@ -522,7 +531,7 @@ with col_b:
     else:
         st.info("无客资数据")
 
-# ========== 第三行：品类订单金额占比 + 各运营中心订单金额 TOP10 ==========
+# ========== 第四行：品类订单金额占比 + 各运营中心订单金额 TOP10 ==========
 col_c, col_d = st.columns(2)
 with col_c:
     st.markdown('<div class="section-header">🍩 品类订单金额占比</div>', unsafe_allow_html=True)
@@ -549,7 +558,7 @@ with col_d:
     else:
         st.info("无订单数据")
 
-# ========== 第四行：转化率趋势（面积图） ==========
+# ========== 第五行：转化率趋势（面积图） ==========
 st.markdown('<div class="section-header">📈 转化率趋势（面积图）</div>', unsafe_allow_html=True)
 if not df_m_curr.empty and "日期" in df_m_curr:
     daily_trend = df_m_curr.groupby(df_m_curr["日期"].dt.date).agg(
@@ -566,12 +575,12 @@ if not df_m_curr.empty and "日期" in df_m_curr:
     fig_area = px.area(daily_trend, x="日期_中文", y="转化率", title="每日转化率趋势",
                        labels={"转化率": "转化率", "日期_中文": "日期"},
                        color_discrete_sequence=['#ef4444'])
-    fig_area.update_layout(plot_bgcolor='rgba(0,0,0,0)')
+    fig_area.update_layout(plot_bgcolor='rgba(0,0,0,0)', height=450)
     st.plotly_chart(fig_area, use_container_width=True)
 else:
     st.info("无数据")
 
-# ========== 第五行：省份销售额排行 + 帕累托图 ==========
+# ========== 第六行：省份销售额排行 + 帕累托图 ==========
 col_e, col_f = st.columns(2)
 with col_e:
     st.markdown('<div class="section-header">🗺️ 省份销售额排行 TOP20</div>', unsafe_allow_html=True)
@@ -600,13 +609,13 @@ with col_f:
             xaxis=dict(title="省份", tickangle=45),
             yaxis=dict(title="销售额(万元)", side="left"),
             yaxis2=dict(title="累计百分比 (%)", overlaying="y", side="right", range=[0, 110]),
-            plot_bgcolor='rgba(0,0,0,0)'
+            plot_bgcolor='rgba(0,0,0,0)', height=500
         )
         st.plotly_chart(fig_pareto, use_container_width=True)
     else:
         st.info("无数据")
 
-# ========== 第六行：城市销售额排行 + 客单价分布 ==========
+# ========== 第七行：城市销售额排行 + 客单价分布 ==========
 col_g, col_h = st.columns(2)
 with col_g:
     st.markdown('<div class="section-header">🏙️ 城市销售额排行 TOP20</div>', unsafe_allow_html=True)
@@ -626,12 +635,12 @@ with col_h:
     if not df_o_curr.empty:
         fig_hist = px.histogram(df_o_curr, x="订单金额", nbins=30, title="订单金额分布（元）",
                                 labels={"订单金额": "订单金额（元）"}, color_discrete_sequence=['#10b981'])
-        fig_hist.update_layout(plot_bgcolor='rgba(0,0,0,0)', bargap=0.05)
+        fig_hist.update_layout(plot_bgcolor='rgba(0,0,0,0)', bargap=0.05, height=500)
         st.plotly_chart(fig_hist, use_container_width=True)
     else:
         st.info("无订单数据")
 
-# ========== 第七行：地理热力地图（可选） ==========
+# ========== 第八行：地理热力地图（可选） ==========
 st.markdown('<div class="section-header">🗺️ 地理热力地图（省份销售额气泡图）</div>', unsafe_allow_html=True)
 if not df_o_curr.empty and 'province_sale' in locals() and not province_sale.empty:
     map_df = province_sale.copy()
