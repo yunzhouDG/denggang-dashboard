@@ -60,20 +60,19 @@ td.num { text-align:right; font-family:'SF Mono',Monaco,monospace }
 
 <div class="filters">
   <label>日期:</label>
-  <input type="date" id="f-start" value="2024-01-01">
+  <input type="date" id="f-start" value="2024-01-01" onchange="doFilter()">
   <span>至</span>
-  <input type="date" id="f-end" value="2024-12-31">
+  <input type="date" id="f-end" value="2024-12-31" onchange="doFilter()">
   
   <label>品牌:</label>
-  <select id="f-brand"><option value="">全部</option><option value="COLMO">COLMO</option><option value="东芝">东芝</option><option value="小天鹅">小天鹅</option><option value="美的">美的</option></select>
+  <select id="f-brand" onchange="doFilter()"><option value="">全部</option><option value="COLMO">COLMO</option><option value="东芝">东芝</option><option value="小天鹅">小天鹅</option><option value="美的">美的</option></select>
   
   <label>品类:</label>
-  <select id="f-cat"><option value="">全部</option><option value="冰箱">冰箱</option><option value="厨热">厨热</option><option value="洗衣机">洗衣机</option><option value="空调">空调</option></select>
+  <select id="f-cat" onchange="doFilter()"><option value="">全部</option><option value="冰箱">冰箱</option><option value="厨热">厨热</option><option value="洗衣机">洗衣机</option><option value="空调">空调</option></select>
   
-  <label>运营中心:</label>
-  <select id="f-center"><option value="">全部</option><option value="上海">上海</option><option value="乌鲁木齐">乌鲁木齐</option><option value="北京">北京</option><option value="南京">南京</option><option value="南宁">南宁</option><option value="南昌">南昌</option><option value="南阳">南阳</option><option value="合肥">合肥</option><option value="太原">太原</option><option value="广州">广州</option><option value="徐州">徐州</option><option value="成都">成都</option><option value="昆明">昆明</option><option value="未知">未知</option><option value="杭州">杭州</option><option value="武汉">武汉</option><option value="沈阳">沈阳</option><option value="济南">济南</option><option value="海口">海口</option><option value="深圳">深圳</option><option value="甘青宁">甘青宁</option><option value="石家庄">石家庄</option><option value="福州">福州</option><option value="西安">西安</option><option value="贵阳">贵阳</option><option value="郑州">郑州</option><option value="重庆">重庆</option><option value="长沙">长沙</option><option value="青岛">青岛</option><option value="黑吉">黑吉</option></select>
+  <label>运中:</label>
+  <select id="f-center" onchange="doFilter()"><option value="">全部</option><option value="上海">上海</option><option value="乌鲁木齐">乌鲁木齐</option><option value="北京">北京</option><option value="南京">南京</option><option value="南宁">南宁</option><option value="南昌">南昌</option><option value="南阳">南阳</option><option value="合肥">合肥</option><option value="太原">太原</option><option value="广州">广州</option><option value="徐州">徐州</option><option value="成都">成都</option><option value="昆明">昆明</option><option value="未知">未知</option><option value="杭州">杭州</option><option value="武汉">武汉</option><option value="沈阳">沈阳</option><option value="济南">济南</option><option value="海口">海口</option><option value="深圳">深圳</option><option value="甘青宁">甘青宁</option><option value="石家庄">石家庄</option><option value="福州">福州</option><option value="西安">西安</option><option value="贵阳">贵阳</option><option value="郑州">郑州</option><option value="重庆">重庆</option><option value="长沙">长沙</option><option value="青岛">青岛</option><option value="黑吉">黑吉</option></select>
   
-  <button class="btn-primary" onclick="applyFilter()">筛选</button>
   <button class="btn-default" onclick="resetFilter()">重置</button>
 </div>
 
@@ -250,17 +249,49 @@ function render(data) {
   document.getElementById('t-brand').innerHTML = bh+'</table>';
 }
 
-// Filter logic
-function applyFilter() {
-  alert('筛选功能需重新生成数据，请联系管理员更新数据！');
+// Filter logic - auto-triggered on change
+function doFilter() {
+  var brand = document.getElementById('f-brand').value;
+  var cat = document.getElementById('f-cat').value;
+  var center = document.getElementById('f-center').value;
+  
+  // Build a filtered copy of data
+  var fd = JSON.parse(JSON.stringify(RAW));
+  
+  // Filter brand_summary
+  if (brand) {
+    fd.brand_summary = RAW.brand_summary.filter(b => b['name'] === brand);
+    fd.kpi.total_leads = fd.brand_summary.reduce((s,b) => s + (b['客资数']||0), 0);
+    fd.kpi.total_orders = fd.brand_summary.reduce((s,b) => s + (b['订单数']||0), 0);
+    fd.kpi.total_amount = fd.brand_summary.reduce((s,b) => s + (b['金额(万)']||0)*10000, 0);
+    fd.kpi.valid_leads = Math.round(fd.kpi.total_leads * (RAW.kpi.valid_rate/100));
+  }
+  
+  // Filter center_summary
+  if (center) {
+    fd.center_summary = RAW.center_summary.filter(c => c['name'] === center);
+  }
+  
+  // Filter daily by date range
+  var sDate = document.getElementById('f-start').value;
+  var eDate = document.getElementById('f-end').value;
+  if (sDate || eDate) {
+    fd.daily = RAW.daily.filter(d => {
+      var ds = d['日期'].replace(/-/g,'');
+      return (!sDate || ds >= sDate.replace(/-/g,'')) && (!eDate || ds <= eDate.replace(/-/g,''));
+    });
+  }
+  
+  render(fd);
 }
 
 function resetFilter() {
-  document.getElementById('f-start').value = '';
-  document.getElementById('f-end').value = '';
+  document.getElementById('f-start').value = '2024-01-01';
+  document.getElementById('f-end').value = '2024-12-31';
   document.getElementById('f-brand').value = '';
   document.getElementById('f-cat').value = '';
   document.getElementById('f-center').value = '';
+  render(RAW);
 }
 
 // Init
