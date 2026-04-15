@@ -177,13 +177,13 @@ function render(data) {
     tooltip:{trigger:'axis'},
     legend:{data:['有效率','分配率','跟进率','成交率'],bottom:0},
     grid:{left:50,right:20,top:20,bottom:50},
-    xAxis:{type:'category',data:data.daily.map(r=>r['日期'].slice(5)),axisLabel:{fontSize:11}},
+    xAxis:{type:'category',data:data.daily.map(r=>r['日期'].slice(5)),axisLabel:{fontSize:11,interval:Math.floor(data.daily.length/10),rotate:30}},
     yAxis:{type:'value',axisLabel:{formatter:v=>v+'%'},max:100},
     series:[
-      {name:'有效率',type:'line',data:data.daily.map(r=>((r['有效率']||0)*100).toFixed(1)),smooth:true,itemStyle:{color:'#52c41a'}},
-      {name:'分配率',type:'line',data:data.daily.map(r=>((r['分配率']||0)*100).toFixed(1)),smooth:true,itemStyle:{color:'#faad14'}},
-      {name:'跟进率',type:'line',data:data.daily.map(r=>((r['跟进率']||0)*100).toFixed(1)),smooth:true,itemStyle:{color:'#fa8c16'}},
-      {name:'成交率',type:'line',data:data.daily.map(r=>(r['成交率']||0).toFixed(1)),smooth:true,itemStyle:{color:'#f5222d'}}
+      {name:'有效率',type:'line',data:data.daily.map(r=>parseFloat(((r['有效率']||0)*100).toFixed(2))),smooth:0.5,symbol:'none',itemStyle:{color:'#52c41a'},lineStyle:{width:2}},
+      {name:'分配率',type:'line',data:data.daily.map(r=>parseFloat(((r['分配率']||0)*100).toFixed(2))),smooth:0.5,symbol:'none',itemStyle:{color:'#faad14'},lineStyle:{width:2}},
+      {name:'跟进率',type:'line',data:data.daily.map(r=>parseFloat(((r['跟进率']||0)*100).toFixed(2))),smooth:0.5,symbol:'none',itemStyle:{color:'#fa8c16'},lineStyle:{width:2}},
+      {name:'成交率',type:'line',data:data.daily.map(r=>parseFloat((r['成交率']||0).toFixed(2))),smooth:0.5,symbol:'none',itemStyle:{color:'#f5222d'},lineStyle:{width:2}}
     ]
   });
   
@@ -222,10 +222,22 @@ function render(data) {
   });
   
   // Map
+  var mpData = data.map_points.map(p => ({
+    name: p.name,
+    value: [p.lng, p.lat, p.amount || 0],
+    leads: p.leads || 0,
+    orders: p.orders || 0
+  }));
   echarts.init(document.getElementById('c-map')).setOption({
-    tooltip:{trigger:'item',formatter:p=>p.name+'<br/>客资: '+fmtNum(p.data.leads)+'<br/>订单: '+fmtNum(p.data.orders)+'<br/>金额: '+fmtMoney(p.data.amount)},
-    geo:{map:'china',roam:true,scaleLimit:{min:1,max:8},itemStyle:{areaColor:'#e8f4ff',borderColor:'#bbb'},emphasis:{itemStyle:{areaColor:'#cce4ff'}}},
-    series:[{type:'effectScatter',coordinateSystem:'geo',data:data.map_points.map(p=>({name:p.name,value:[p.lng,p.lat],amount:p.amount,leads:p.leads,orders:p.orders})),symbolSize:v=>Math.max(6,Math.sqrt(v.amount)/800),itemStyle:{color:'#f5222d'},rippleEffect:{brushType:'stroke',scale:3}}]
+    tooltip:{trigger:'item',formatter:p=>p.name+'<br/>客资: '+fmtNum(p.data.leads)+'<br/>订单: '+fmtNum(p.data.orders)+'<br/>金额: '+fmtMoney(p.data.value[2])},
+    geo:{map:'china',roam:true,scaleLimit:{min:1,max:8},itemStyle:{areaColor:'#e8f4ff',borderColor:'#bbb'},emphasis:{itemStyle:{areaColor:'#cce4ff'},label:{show:true,fontSize:10}}},
+    series:[{
+      type:'effectScatter', coordinateSystem:'geo',
+      data: mpData,
+      symbolSize: function(v) { return Math.max(5, Math.sqrt(v[2]||1)/300); },
+      itemStyle:{color:'#f5222d'},
+      showEffectOn:'render', rippleEffect:{brushType:'stroke',scale:3}
+    }]
   });
   
   // Tables
