@@ -31,7 +31,7 @@ st.markdown("""
         background: linear-gradient(135deg, #2b5fde 0%, #4a90e2 100%);
         border-bottom: 1px solid #d0dff7;
         padding: 18px 32px;
-        display: flex; align-items: center; justify-content: space-between;
+        display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;
         border-radius: 0;
         margin: -1rem -1rem 1rem -1rem;
     }
@@ -417,8 +417,7 @@ if df_main.empty:
     st.error("客资明细表为空")
     st.stop()
 
-# 筛选器
-st.sidebar.markdown("## 🎛️ 筛选面板")
+# 日期范围
 if not df_main["日期"].isna().all():
     min_date = df_main["日期"].min().date()
     max_date = df_main["日期"].max().date()
@@ -426,16 +425,26 @@ else:
     min_date = datetime.today().date()
     max_date = datetime.today().date()
 
-start_date = st.sidebar.date_input("📅 开始日期", min_date)
-end_date = st.sidebar.date_input("📅 结束日期", max_date)
-
 all_brands = sorted(set(df_main["品牌"].dropna().unique()) | set(df_order["品牌"].dropna().unique()))
 all_brands = [b for b in all_brands if b and b != "未知"]
 all_cats = sorted([c for c in df_main["品类"].dropna().unique() if c and c != "未知"])
 all_centers = sorted([c for c in df_main["运中"].dropna().unique() if c and c != "未知"])
-sel_brand = st.sidebar.multiselect("🏷️ 品牌", all_brands, default=[])
-sel_cat = st.sidebar.multiselect("📦 品类", all_cats, default=[])
-sel_center = st.sidebar.multiselect("📍 运营中心", all_centers, default=[])
+
+# 筛选器（标题下方）
+with st.container():
+    st.markdown('<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px;">', unsafe_allow_html=True)
+    sc1, sc2, sc3, sc4, sc5 = st.columns([1,1,1,1,1])
+    with sc1:
+        start_date = st.date_input("开始", min_date, key="start")
+    with sc2:
+        end_date = st.date_input("结束", max_date, key="end")
+    with sc3:
+        sel_brand = st.multiselect("品牌", all_brands, default=[], key="brand")
+    with sc4:
+        sel_cat = st.multiselect("品类", all_cats, default=[], key="cat")
+    with sc5:
+        sel_center = st.multiselect("运中", all_centers, default=[], key="center")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # 应用筛选
 def apply_filters(dm, do):
@@ -490,7 +499,7 @@ tl_d = len(dm_d); vl_d = int(dm_d["外呼状态"].isin(["高意向","低意向",
 tl_m = len(dm_m); vl_m = int(dm_m["外呼状态"].isin(["高意向","低意向","无需外呼"]).sum()); oc_m = len(do_m); ta_m = float(do_m["订单金额"].sum()) if not do_m.empty else 0.0
 
 latest = max_date.strftime("%Y年%m月%d日")
-st.markdown('<div class="main-header"><div><h1>🏬 天猫新零售数据看板</h1><div class=sub>客资数据 &middot; 订单数据 &middot; 转化漏斗分析</div></div><div class=update-time>数据更新至 ' + latest + '</div></div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header"><div><h1>🏬 天猫新零售数据看板</h1><div class=sub>客资数据 &middot; 订单数据 &middot; 转化漏斗分析 &nbsp;|&nbsp; 数据更新至 ' + latest + '</div></div></div>', unsafe_allow_html=True)
 
 st.markdown('<div class="kpi-row">', unsafe_allow_html=True)
 c1, c2, c3, c4 = st.columns(4)
