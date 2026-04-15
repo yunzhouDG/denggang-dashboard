@@ -11,135 +11,77 @@ import os
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from streamlit_echarts import st_echarts
+import streamlit.components.v1 as components
+from pyecharts.charts import Map, Geo, EffectScatter
+from pyecharts import options as opts
+from pyecharts.globals import GeoType, RenderType
 
 st.set_page_config(layout="wide", page_title="天猫新零售数据看板", page_icon="📊")
 
-# ==================== 精美样式 ====================
+# ==================== 精美样式（与HTML预览版一致） ====================
 st.markdown("""
 <style>
     .stApp {
-        background: linear-gradient(135deg, #f0f4fc 0%, #e9eef6 100%);
-        font-family: 'Inter', 'Segoe UI', 'Roboto', sans-serif;
+        background: #f0f2f5;
+        color: #1f2329;
+        font-family: 'PingFang SC','Microsoft YaHei',sans-serif;
     }
-    /* 总客资 - 蓝色边框 */
-    .metric-card-1 {
-        background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
-        border-radius: 24px;
-        padding: 1rem 1.2rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        border: 1px solid rgba(59,130,246,0.15);
-        border-left: 5px solid #3b82f6;
-        transition: all 0.2s;
+    /* 顶部标题栏 */
+    .main-header {
+        background: linear-gradient(135deg, #2b5fde 0%, #4a90e2 100%);
+        border-bottom: 1px solid #d0dff7;
+        padding: 18px 32px;
+        display: flex; align-items: center; justify-content: space-between;
+        border-radius: 0;
+        margin: -1rem -1rem 1rem -1rem;
     }
-    /* 有效客资 - 绿色边框 */
-    .metric-card-2 {
-        background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
-        border-radius: 24px;
-        padding: 1rem 1.2rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        border: 1px solid rgba(16,185,129,0.15);
-        border-left: 5px solid #10b981;
-        transition: all 0.2s;
+    .main-header h1 { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: 2px; margin: 0; }
+    .main-header .sub { font-size: 13px; color: rgba(255,255,255,0.75); margin-top: 4px; }
+    .main-header .update-time { font-size: 12px; color: rgba(255,255,255,0.6); }
+
+    /* KPI 卡片行 */
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+    .kpi-card {
+        background: #ffffff; border: 1px solid #e4e7ed; border-radius: 12px;
+        padding: 20px 22px; position: relative; overflow: hidden;
+        transition: border-color .2s, box-shadow .2s;
     }
-    /* 成交单量 - 紫色边框 */
-    .metric-card-3 {
-        background: linear-gradient(135deg, #ffffff 0%, #faf5ff 100%);
-        border-radius: 24px;
-        padding: 1rem 1.2rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        border: 1px solid rgba(139,92,246,0.15);
-        border-left: 5px solid #8b5cf6;
-        transition: all 0.2s;
+    .kpi-card:hover { border-color: #4a90e2; box-shadow: 0 4px 20px rgba(74,144,226,0.12); }
+    .kpi-card .kpi-label { font-size: 13px; color: #909399; margin-bottom: 8px; }
+    .kpi-card .kpi-value { font-size: 32px; font-weight: 700; line-height: 1; }
+    .kpi-card .kpi-sub { font-size: 12px; color: #b0b5bf; margin-top: 8px; }
+    .kpi-card .kpi-icon { position: absolute; right: 18px; top: 18px; font-size: 28px; opacity: .12; }
+    .kpi-1 .kpi-value { color: #2b7de9; }
+    .kpi-2 .kpi-value { color: #2db55d; }
+    .kpi-3 .kpi-value { color: #e6604a; }
+    .kpi-4 .kpi-value { color: #9b59b6; }
+
+    /* 图表卡片 */
+    .chart-card {
+        background: #ffffff; border: 1px solid #e4e7ed; border-radius: 12px;
+        padding: 18px 20px; transition: border-color .2s, box-shadow .2s;
     }
-    /* 总金额 - 橙色边框 */
-    .metric-card-4 {
-        background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
-        border-radius: 24px;
-        padding: 1rem 1.2rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        border: 1px solid rgba(245,158,11,0.15);
-        border-left: 5px solid #f59e0b;
-        transition: all 0.2s;
+    .chart-card:hover { border-color: #c0d4f0; box-shadow: 0 2px 12px rgba(74,144,226,0.08); }
+    .card-title {
+        font-size: 14px; font-weight: 600; color: #303641; margin-bottom: 14px;
+        display: flex; align-items: center; gap: 8px;
     }
-    .metric-card-1:hover, .metric-card-2:hover,
-    .metric-card-3:hover, .metric-card-4:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+    .card-title::before {
+        content: ''; display: block; width: 3px; height: 14px;
+        background: #4a90e2; border-radius: 2px;
     }
-    .metric-label {
-        font-size: 0.8rem;
-        font-weight: 600;
-        color: #4b5563;
-        letter-spacing: 0.03em;
-        margin-bottom: 0.4rem;
+
+    /* 分隔标题 */
+    .section-title {
+        font-size: 15px; font-weight: 700; color: #909399; letter-spacing: 1px;
+        margin: 20px 0 12px; padding-bottom: 8px; border-bottom: 1px solid #ebeef5;
+        display: flex; align-items: center; gap: 8px;
     }
-    .metric-value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #111827;
-        line-height: 1.2;
-    }
-    .metric-compare {
-        font-size: 0.7rem;
-        color: #6b7280;
-        margin-top: 0.5rem;
-        display: flex;
-        gap: 0.8rem;
-    }
-    .compare-up { color: #10b981; font-weight: 500; }
-    .compare-down { color: #ef4444; font-weight: 500; }
-    .dashboard-title {
-        font-size: 2.2rem;
-        font-weight: 800;
-        background: linear-gradient(120deg, #1e40af, #7c3aed, #ec4899);
-        background-size: 200% auto;
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-        animation: gradient_shift 3s ease infinite;
-    }
-    @keyframes gradient_shift {
-        0% { background-position: 0% center; }
-        50% { background-position: 100% center; }
-        100% { background-position: 0% center; }
-    }
-    .section-header {
-        font-size: 1.3rem;
-        font-weight: 600;
-        color: #1f2937;
-        border-left: 5px solid;
-        border-image: linear-gradient(180deg, #3b82f6, #7c3aed) 1;
-        padding-left: 0.8rem;
-        margin: 1.2rem 0 1rem 0;
-    }
-    .echarts-card {
-        background: white;
-        border-radius: 24px;
-        padding: 1rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.02);
-        border: 1px solid #eef2f6;
-        margin-bottom: 1rem;
-    }
-    .divider {
-        margin: 1.5rem 0;
-        border: none;
-        height: 2px;
-        background: linear-gradient(90deg, transparent, #e2e8f0, transparent);
-    }
-    .badge {
-        display: inline-block;
-        padding: 0.2rem 0.6rem;
-        border-radius: 20px;
-        font-size: 0.7rem;
-        font-weight: 600;
-        margin-left: 0.5rem;
-    }
-    .badge-new { background: linear-gradient(135deg, #f093fb, #f5576c); color: white; }
-    [data-testid="stSidebar"] {
-        background: rgba(255,255,255,0.95);
-        backdrop-filter: blur(8px);
-        border-right: 1px solid #e2e8f0;
-    }
+
+    /* Streamlit原生元素适配 */
+    .stTabs [data-baseweb="tab-list"] { gap: 8px }
+    .stTabs [data-baseweb="tab"] { border-radius: 8px 8px 0 0; padding: 8px 16px; }
+    [data-testid="stHorizontalBlock"] { gap: 16px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -242,7 +184,7 @@ def fmt_change(current, prev):
 def cmp_html(current, prev_day, prev_month):
     day_html, _ = fmt_change(current, prev_day)
     month_html, _ = fmt_change(current, prev_month)
-    return f'<div class="metric-compare"><span>日环比 {day_html}</span><span>月环比 {month_html}</span></div>'
+    return f'<div class="kpi-sub"><span>日环比 {day_html}</span><span>月环比 {month_html}</span></div>'
 
 # ==================== ECharts配置函数 ====================
 def ec_bar_line(title, x_data, series_dict, y_names, colors):
@@ -333,38 +275,45 @@ def ec_funnel(title, data_list, colors=None):
     }
 
 def ec_map(title, data_dict):
+    """使用 pyecharts 渲染中国地图"""
     geo_coord = {**PROVINCE_CENTER, **CITY_CENTER}
-    scatter_data = []
+    
+    # 使用 Geo 地图（支持城市散点）
+    geo = (
+        Geo(init_opts=opts.InitOpts(width="100%", height="500px", renderer=RenderType.SVGGEN))
+        .add_schema(
+            maptype="china",
+            itemstyle_opts=opts.ItemStyleOpts(
+                area_color="#e8f4ff",
+                border_color="#a0c4e8",
+                border_width=1
+            ),
+            emphasis_itemstyle_opts=opts.ItemStyleOpts(area_color="#c8e6ff"),
+            is_roam=True,
+            zoom=1.2
+        )
+    )
+    
     for name, val in data_dict.items():
         if name in geo_coord:
-            scatter_data.append({
-                "name": name,
-                "value": geo_coord[name] + [val.get("客资", 0), val.get("转化率", 0)]
-            })
-    return {
-        "title": {"text": title, "left": "center", "textStyle": {"fontSize": 14, "fontWeight": "600", "color": "#1f2937"}},
-        "tooltip": {
-            "trigger": "item",
-            "formatter": lambda p: f"{p.name}<br/>客资数: {p.value[2] if len(p.value)>2 else '-'}<br/>转化率: {p.value[3] if len(p.value)>3 else '-'}%" if len(p.value) > 2 else p.name
-        },
-        "geo": {
-            "map": "china", "roam": True, "zoom": 1.2,
-            "itemStyle": {"areaColor": "#e8f4ff", "borderColor": "#a0c4e8", "borderWidth": 1},
-            "emphasis": {"itemStyle": {"areaColor": "#c8e6ff"}},
-            "label": {"show": False}
-        },
-        "series": [{
-            "type": "effectScatter", "coordinateSystem": "geo",
-            "data": scatter_data,
-            "symbolSize": lambda v: max(8, min(40, v[2] / 100)),
-            "itemStyle": {
-                "color": {"type": "radial", "x": 0.5, "y": 0.5, "r": 0.5,
-                          "colorStops": [{"offset": 0, "color": "#27ae60"}, {"offset": 1, "color": "#0d6e3f"}]}
-            },
-            "emphasis": {"scale": 1.5},
-            "rippleEffect": {"brushType": "stroke", "scale": 3}
-        }]
-    }
+            geo.add_coordinate(name, geo_coord[name][0], geo_coord[name][1])
+            geo.add(
+                "",
+                [(name, val.get("客资", 0))],
+                symbol_size=lambda v: max(8, min(40, v / 100)),
+                color="#27ae60"
+            )
+    
+    geo.set_series_opts(
+        label_opts=opts.LabelOpts(is_show=False),
+        effect_opts=opts.EffectOpts(symbol_size=12, brush_type='stroke', scale=3)
+    )
+    geo.set_global_opts(
+        title_opts=opts.TitleOpts(title=title, pos_left="center", title_textstyle_opts=opts.TextStyleOpts(font_size=14, font_weight="600", color="#1f2937")),
+        tooltip_opts=opts.TooltipOpts(trigger="item", formatter="{b}<br/>客资数: {c}"),
+        visualmap_opts=opts.VisualMapOpts(min_=0, max_=max([v.get("客资", 0) for v in data_dict.values()]) if data_dict else 1000, is_piecewise=False, text_color="#666")
+    )
+    return geo
 
 # ==================== 数据加载 ====================
 @st.cache_data(ttl=3600)
@@ -540,27 +489,27 @@ dm_m, do_m = filter_df(df_main, df_order, mps_start, mps_end)
 tl_d = len(dm_d); vl_d = int(dm_d["外呼状态"].isin(["高意向","低意向","无需外呼"]).sum()); oc_d = len(do_d); ta_d = float(do_d["订单金额"].sum()) if not do_d.empty else 0.0
 tl_m = len(dm_m); vl_m = int(dm_m["外呼状态"].isin(["高意向","低意向","无需外呼"]).sum()); oc_m = len(do_m); ta_m = float(do_m["订单金额"].sum()) if not do_m.empty else 0.0
 
-c1, c2, c3, c4 = st.columns(4)
 latest = max_date.strftime("%Y年%m月%d日")
-st.markdown(f'<div class="dashboard-title">🏬 天猫新零售数据看板</div>', unsafe_allow_html=True)
-st.markdown(f"<div style='color:#4b5563; margin-bottom:1rem;'>数据更新至 {latest}</div>", unsafe_allow_html=True)
+st.markdown('<div class="main-header"><div><h1>🏬 天猫新零售数据看板</h1><div class=sub>客资数据 &middot; 订单数据 &middot; 转化漏斗分析</div></div><div class=update-time>数据更新至 ' + latest + '</div></div>', unsafe_allow_html=True)
 
+st.markdown('<div class="kpi-row">', unsafe_allow_html=True)
+c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown(f"""<div class="metric-card-1"><div class="metric-label">📋 总客资</div><div class="metric-value">{total_leads:,}</div>{cmp_html(total_leads, tl_d, tl_m)}</div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="kpi-card kpi-1"><div class="kpi-label">📋 总客资</div><div class="kpi-value">{total_leads:,}</div>{cmp_html(total_leads, tl_d, tl_m)}</div>""", unsafe_allow_html=True)
 with c2:
-    st.markdown(f"""<div class="metric-card-2"><div class="metric-label">✅ 有效客资</div><div class="metric-value">{valid_leads:,}</div>{cmp_html(valid_leads, vl_d, vl_m)}</div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="kpi-card kpi-2"><div class="kpi-label">✅ 有效客资</div><div class="kpi-value">{valid_leads:,}</div>{cmp_html(valid_leads, vl_d, vl_m)}</div>""", unsafe_allow_html=True)
 with c3:
-    st.markdown(f"""<div class="metric-card-3"><div class="metric-label">🛒 成交单量</div><div class="metric-value">{order_count:,}</div>{cmp_html(order_count, oc_d, oc_m)}</div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="kpi-card kpi-3"><div class="kpi-label">🛒 成交单量</div><div class="kpi-value">{order_count:,}</div>{cmp_html(order_count, oc_d, oc_m)}</div>""", unsafe_allow_html=True)
 with c4:
-    st.markdown(f"""<div class="metric-card-4"><div class="metric-label">💰 总金额（万元）</div><div class="metric-value">{total_amount/10000:.2f} 万</div>{cmp_html(total_amount, ta_d, ta_m)}</div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="kpi-card kpi-4"><div class="kpi-label">💰 总金额（万元）</div><div class="kpi-value">{total_amount/10000:.2f} 万</div>{cmp_html(total_amount, ta_d, ta_m)}</div>""", unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ==================== ECharts 图表区 ====================
-st.markdown('<hr class="divider">', unsafe_allow_html=True)
-st.markdown('### 🎨 ECharts 精美图表 <span class="badge badge-new">增强版</span>', unsafe_allow_html=True)
+
 
 # 转化漏斗（使用你的计算逻辑）
-st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
-st.markdown('<div class="section-header">📉 客户转化漏斗</div>', unsafe_allow_html=True)
+st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+st.markdown('<div class="card-title">📉 客户转化漏斗</div>', unsafe_allow_html=True)
 st_echarts(ec_funnel("客户转化漏斗", [
     ("总客资", total_leads),
     ("有效客资", valid_leads),
@@ -571,7 +520,7 @@ st_echarts(ec_funnel("客户转化漏斗", [
 st.markdown('</div>', unsafe_allow_html=True)
 
 # 月度趋势
-st.markdown('<div class="section-header">📈 月度客资与订单趋势</div>', unsafe_allow_html=True)
+st.markdown('<div class="card-title">📈 月度客资与订单趋势</div>', unsafe_allow_html=True)
 if not df_m.empty and not df_o.empty:
     df_m["年月"] = df_m["日期"].dt.to_period("M").astype(str)
     df_o["年月"] = df_o["日期"].dt.to_period("M").astype(str)
@@ -584,7 +533,7 @@ if not df_m.empty and not df_o.empty:
         ["客资数", "订单数", "转化率(%)"], ["#4a90e2", "#27ae60", "#e07050"]), height="420px")
 
 # 日转化率面积图
-st.markdown('<div class="section-header">📈 日转化率趋势（面积图）</div>', unsafe_allow_html=True)
+st.markdown('<div class="card-title">📈 日转化率趋势（面积图）</div>', unsafe_allow_html=True)
 if not df_m.empty and not df_o.empty:
     # 过滤掉NaT日期
     df_m_clean = df_m.dropna(subset=["日期"])
@@ -616,20 +565,20 @@ if not df_m.empty and not df_o.empty:
 # 品类饼图
 col1, col2 = st.columns(2)
 with col1:
-    st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     if not df_m.empty:
         st_echarts(ec_pie("品类客资量占比", df_m.groupby("品类").size().to_dict()), height="360px")
     st.markdown('</div>', unsafe_allow_html=True)
 with col2:
-    st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     if not df_o.empty:
         st_echarts(ec_pie("品类订单金额占比", df_o.groupby("品类")["订单金额"].sum().to_dict(),
                           ['#667eea','#764ba2','#f093fb','#f5576c','#4facfe','#00f2fe']), height="360px")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # 商品类目 TOP10 分析
-st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
-st.markdown('<div class="section-header">🏷️ 商品类目 TOP10（按订单金额）</div>', unsafe_allow_html=True)
+st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+st.markdown('<div class="card-title">🏷️ 商品类目 TOP10（按订单金额）</div>', unsafe_allow_html=True)
 if not df_o.empty:
     cat_top10 = df_o.groupby("商品类目")["订单金额"].sum().sort_values(ascending=False).head(10)
     st_echarts(ec_bar_h("商品类目 TOP10", cat_top10.to_dict(), "万元", "#f7ba5e", "#f97316"), height="400px")
@@ -638,12 +587,12 @@ st.markdown('</div>', unsafe_allow_html=True)
 # 运营中心分析
 col3, col4 = st.columns(2)
 with col3:
-    st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     if not df_m.empty:
         st_echarts(ec_bar_h("运营中心客资量 TOP15", df_m.groupby("运中").size().to_dict(), "客资", "#4a90e2", "#7c3aed"), height="400px")
     st.markdown('</div>', unsafe_allow_html=True)
 with col4:
-    st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     if not df_m.empty and not df_o.empty:
         cl = df_m.groupby("运中").size()
         co = df_o.groupby("运中").size()
@@ -655,12 +604,12 @@ with col4:
 # 品牌分析
 col5, col6 = st.columns(2)
 with col5:
-    st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     if not df_m.empty:
         st_echarts(ec_bar_h("品牌客资量 TOP15", df_m.groupby("品牌").size().to_dict(), "客资", "#f093fb", "#f5576c"), height="400px")
     st.markdown('</div>', unsafe_allow_html=True)
 with col6:
-    st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
     if not df_m.empty and not df_o.empty:
         bl = df_m.groupby("品牌").size()
         bo = df_o.groupby("品牌").size()
@@ -670,8 +619,8 @@ with col6:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # 省份销售额 TOP20
-st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
-st.markdown('<div class="section-header">🗺️ 省份销售额排行 TOP20</div>', unsafe_allow_html=True)
+st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+st.markdown('<div class="card-title">🗺️ 省份销售额排行 TOP20</div>', unsafe_allow_html=True)
 if not df_o.empty:
     prov = df_o.groupby("省份_标准化")["订单金额"].sum()
     prov = prov[prov.index.isin(STANDARD_PROVINCES)].dropna()
@@ -680,8 +629,8 @@ if not df_o.empty:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # 城市销售额 TOP15
-st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
-st.markdown('<div class="section-header">🏙️ 城市销售额 TOP15</div>', unsafe_allow_html=True)
+st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+st.markdown('<div class="card-title">🏙️ 城市销售额 TOP15</div>', unsafe_allow_html=True)
 if not df_o.empty:
     city = df_o[df_o["城市_raw"]!=""].groupby("城市_raw")["订单金额"].sum()
     city = (city/10000).round(1).sort_values(ascending=False).head(15).to_dict()
@@ -689,8 +638,8 @@ if not df_o.empty:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # 全国热力地图
-st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
-st.markdown('<div class="section-header">🌍 全国运营中心分布热力图</div>', unsafe_allow_html=True)
+st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+st.markdown('<div class="card-title">🌍 全国运营中心分布热力图</div>', unsafe_allow_html=True)
 if not df_m.empty and not df_o.empty:
     cl = df_m.groupby("运中").size()
     co = df_o.groupby("运中").size()
@@ -699,7 +648,8 @@ if not df_m.empty and not df_o.empty:
         if c in CITY_CENTER:
             geo_data[c] = {"客资": int(cl.get(c,0)), "转化率": round(co.get(c,0)/cl[c]*100,2) if cl[c]>0 else 0}
     if geo_data:
-        st_echarts(ec_map("全国运营中心（气泡大小=客资数，颜色=转化率）", geo_data), height="500px")
+        chart = ec_map("全国运营中心（气泡大小=客资数，颜色=转化率）", geo_data)
+        components.html(chart.render_embed(), height=520, scrolling=True)
     else:
         st.info("无有效的运营中心地理位置数据")
 else:
@@ -707,8 +657,8 @@ else:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # 运营中心汇总明细表
-st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
-st.markdown('<div class="section-header">📊 运营中心汇总明细</div>', unsafe_allow_html=True)
+st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+st.markdown('<div class="card-title">📊 运营中心汇总明细</div>', unsafe_allow_html=True)
 if not df_m.empty and not df_o.empty:
     cl = df_m.groupby("运中").size()
     co = df_o.groupby("运中").size()
@@ -725,8 +675,8 @@ if not df_m.empty and not df_o.empty:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # 品牌汇总明细表
-st.markdown('<div class="echarts-card">', unsafe_allow_html=True)
-st.markdown('<div class="section-header">🏷️ 品牌汇总明细</div>', unsafe_allow_html=True)
+st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+st.markdown('<div class="card-title">🏷️ 品牌汇总明细</div>', unsafe_allow_html=True)
 if not df_m.empty and not df_o.empty:
     bl = df_m.groupby("品牌").size()
     bo = df_o.groupby("品牌").size()
