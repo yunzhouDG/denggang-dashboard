@@ -586,21 +586,25 @@ if not df_m.empty and not df_o.empty:
 # 日转化率面积图
 st.markdown('<div class="section-header">📈 日转化率趋势（面积图）</div>', unsafe_allow_html=True)
 if not df_m.empty and not df_o.empty:
-    daily_m = df_m.groupby(df_m["日期"].dt.date).agg(
+    # 过滤掉NaT日期
+    df_m_clean = df_m.dropna(subset=["日期"])
+    daily_m = df_m_clean.groupby(df_m_clean["日期"].dt.date).agg(
         总客资=("品牌", "count"),
         有效客资=("外呼状态", lambda x: x.isin(["高意向","低意向","无需外呼"]).sum())
     ).reset_index()
-    daily_o = df_o.groupby(df_o["日期"].dt.date).size().reset_index(name="成交数")
-    daily_m = daily_m.merge(daily_o, on="日期", how="left").fillna(0)
-    daily_m["转化率"] = daily_m["成交数"] / daily_m["有效客资"].replace(0, pd.NA)
-    daily_m["日期_str"] = daily_m["日期"].apply(lambda d: d.strftime("%m-%d") if hasattr(d, "strftime") else str(d))
+    daily_o = df_o.dropna(subset=["日期"]).groupby(df_o["日期"].dt.date).size().reset_index(name="成交数")
+    daily_m = daily_m.merge(daily_o, on="日期", how="left")
+    daily_m["成交数"] = pd.to_numeric(daily_m["成交数"], errors="coerce").fillna(0)
+    daily_m["有效客资"] = pd.to_numeric(daily_m["有效客资"], errors="coerce").fillna(0)
+    daily_m["转化率"] = daily_m.apply(lambda r: round(r["成交数"]/r["有效客资"]*100,2) if r["有效客资"]>0 else 0, axis=1)
+    dates_str = [str(d) for d in daily_m["日期"]]
     conv_area = {
         "title": {"text": "每日转化率趋势", "left": "center", "textStyle": {"fontSize": 14, "fontWeight": "600", "color": "#1f2937"}},
-        "tooltip": {"trigger": "axis", "formatter": lambda p: f"{p[0].name}<br/>转化率: {(p[0].value or 0)*100:.2f}%"},
+        "tooltip": {"trigger": "axis"},
         "grid": {"left": 50, "right": 30, "bottom": 30, "top": 45},
-        "xAxis": {"type": "category", "data": list(daily_m["日期_str"]), "axisLabel": {"color": "#4a4e57", "rotate": 30}},
+        "xAxis": {"type": "category", "data": dates_str, "axisLabel": {"color": "#4a4e57", "rotate": 30}},
         "yAxis": {"type": "value", "axisLabel": {"color": "#606776", "formatter": "{value}%"}, "splitLine": {"lineStyle": {"color": "#ebeef5"}}},
-        "series": [{"name": "转化率", "type": "line", "data": [float(v or 0)*100 for v in daily_m["转化率"].fillna(0)], "smooth": True,
+        "series": [{"name": "转化率", "type": "line", "data": [float(v) for v in daily_m["转化率"]], "smooth": True,
                    "lineStyle": {"width": 2, "color": "#ef4444"},
                    "itemStyle": {"color": "#ef4444"},
                    "areaStyle": {"color": {"type": "linear", "x": 0, "y": 0, "x2": 0, "y2": 1,
