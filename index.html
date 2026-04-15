@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>天猫新零售数据看板</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif; background: #f0f2f5; color: #1f2329; }
+
+.header {
+  background: linear-gradient(135deg, #2b5fde 0%, #4a90e2 100%);
+  padding: 20px 40px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+.header h1 { color: #fff; font-size: 24px; font-weight: 700; letter-spacing: 3px; }
+.header p { color: rgba(255,255,255,0.8); font-size: 13px; margin-top: 6px; }
+
+/* Filter bar */
+.filter-bar {
+  background: #fff; border-radius: 12px; padding: 14px 24px; margin: 0 20px 20px;
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.filter-bar label { font-size: 13px; color: #606776; font-weight: 600; }
+.filter-bar select, .filter-bar input {
+  border: 1px solid #e4e7ed; border-radius: 8px; padding: 6px 12px;
+  font-size: 13px; color: #303641; background: #fafafa; cursor: pointer; outline: none;
+}
+.filter-bar select:hover, .filter-bar input:hover { border-color: #4a90e2; }
+.filter-bar select:focus { border-color: #4a90e2; box-shadow: 0 0 0 2px rgba(74,144,226,0.1); }
+.date-range { display: flex; align-items: center; gap: 6px; }
+
+/* KPI cards */
+.kpi-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  padding: 0 20px; margin-bottom: 20px;
+}
+.kpi-card {
+  background: #fff; border-radius: 12px; padding: 20px 24px;
+  border: 1px solid #e4e7ed; position: relative; overflow: hidden;
+  transition: all 0.2s;
+}
+.kpi-card:hover { border-color: #4a90e2; box-shadow: 0 4px 16px rgba(74,144,226,0.12); transform: translateY(-1px); }
+.kpi-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+}
+.kpi-card:nth-child(1)::before { background: #2b7de9; }
+.kpi-card:nth-child(2)::before { background: #2db55d; }
+.kpi-card:nth-child(3)::before { background: #e6604a; }
+.kpi-card:nth-child(4)::before { background: #9b59b6; }
+.kpi-label { font-size: 13px; color: #909399; margin-bottom: 10px; }
+.kpi-value { font-size: 32px; font-weight: 700; line-height: 1; }
+.kpi-rate { font-size: 12px; color: #b0b5bf; margin-top: 8px; }
+.kpi-1 .kpi-value { color: #2b7de9; }
+.kpi-2 .kpi-value { color: #2db55d; }
+.kpi-3 .kpi-value { color: #e6604a; }
+.kpi-4 .kpi-value { color: #9b59b6; }
+
+/* Charts */
+.chart-row { display: flex; gap: 16px; padding: 0 20px; margin-bottom: 20px; }
+.chart-card {
+  background: #fff; border-radius: 12px; border: 1px solid #e4e7ed;
+  padding: 18px 20px; position: relative;
+}
+.chart-title {
+  font-size: 14px; font-weight: 600; color: #303641; margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.chart-title::before {
+  content: ''; display: block; width: 3px; height: 14px; border-radius: 2px;
+  background: #4a90e2;
+}
+.chart-100 { width: 100%; }
+.chart-50 { width: 50%; }
+.chart-33 { width: 33.33%; }
+.chart-66 { width: 66.66%; }
+
+/* Tabs */
+.tabs { display: flex; border-bottom: 2px solid #f0f2f5; margin-bottom: 14px; }
+.tab-btn {
+  padding: 8px 20px; font-size: 13px; color: #909399; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  transition: all 0.2s; font-weight: 500;
+}
+.tab-btn:hover { color: #4a90e2; }
+.tab-btn.active { color: #4a90e2; border-bottom-color: #4a90e2; font-weight: 600; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Footer */
+.footer {
+  text-align: center; padding: 24px; color: #909399; font-size: 12px;
+  margin-top: 30px;
+}
+.footer span { margin: 0 8px; }
+
+/* Tables */
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th {
+  background: #f5f7fa; color: #606776; font-weight: 600; padding: 10px 14px;
+  text-align: left; border-bottom: 1px solid #e4e7ed;
+}
+.data-table td { padding: 10px 14px; border-bottom: 1px solid #f0f2f5; color: #303641; }
+.data-table tr:hover td { background: #f9faff; }
+.data-table tr:last-child td { border-bottom: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏬 天猫新零售数据看板</h1>
+  <p>客资数据 &middot; 订单数据 &middot; 转化漏斗分析 &nbsp;|&nbsp; <span id="data-range"></span></p>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <div class="date-range">
+    <label>日期</label>
+    <input type="date" id="date-start">
+    <span style="color:#b0b5bf">至</span>
+    <input type="date" id="date-end">
+  </div>
+  <div>
+    <label>品牌</label>
+    <select id="filter-brand" multiple style="min-width:140px;height:32px;"></select>
+  </div>
+  <div>
+    <label>品类</label>
+    <select id="filter-cat" multiple style="min-width:120px;height:32px;"></select>
+  </div>
+  <div>
+    <label>运营中心</label>
+    <select id="filter-center" multiple style="min-width:140px;height:32px;"></select>
+  </div>
+  <div>
+    <label>片区</label>
+    <select id="filter-region" multiple style="min-width:120px;height:32px;"></select>
+  </div>
+  <button onclick="applyFilters()" style="background:#4a90e2;color:#fff;border:none;border-radius:8px;padding:7px 18px;cursor:pointer;font-size:13px;font-weight:600;">筛选</button>
+  <button onclick="resetFilters()" style="background:#f5f7fa;color:#606776;border:1px solid #e4e7ed;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px;">重置</button>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-row">
+  <div class="kpi-card kpi-1">
+    <div class="kpi-label">📋 总客资数</div>
+    <div class="kpi-value" id="kpi-total">-</div>
+    <div class="kpi-rate" id="kpi-total-rate"></div>
+  </div>
+  <div class="kpi-card kpi-2">
+    <div class="kpi-label">✅ 有效客资数</div>
+    <div class="kpi-value" id="kpi-valid">-</div>
+    <div class="kpi-rate" id="kpi-valid-rate"></div>
+  </div>
+  <div class="kpi-card kpi-3">
+    <div class="kpi-label">🛒 成交数</div>
+    <div class="kpi-value" id="kpi-order">-</div>
+    <div class="kpi-rate" id="kpi-order-rate"></div>
+  </div>
+  <div class="kpi-card kpi-4">
+    <div class="kpi-label">💰 总金额</div>
+    <div class="kpi-value" id="kpi-amount">-</div>
+    <div class="kpi-rate" id="kpi-amount-rate"></div>
+  </div>
+</div>
+
+<!-- 转化漏斗 -->
+<div class="chart-row" style="flex-wrap:wrap;">
+  <div class="chart-card chart-100" style="flex:1;min-width:600px;">
+    <div class="chart-title">📉 客户转化漏斗</div>
+    <div id="chart-funnel" style="height:380px;"></div>
+  </div>
+</div>
+
+<!-- 日四率趋势 + 品牌销售 -->
+<div class="chart-row">
+  <div class="chart-card chart-66">
+    <div class="chart-title">📈 每日四率趋势（有效率/分配率/跟进率/成交率）</div>
+    <div id="chart-daily" style="height:360px;"></div>
+  </div>
+  <div class="chart-card chart-33">
+    <div class="chart-title">🏆 品牌客资量 TOP10</div>
+    <div id="chart-brand" style="height:360px;"></div>
+  </div>
+</div>
+
+<!-- 品类/片区/运中销售额 -->
+<div class="chart-row">
+  <div class="chart-card chart-100">
+    <div class="chart-title">📊 销售额分布</div>
+    <div class="tabs">
+      <div class="tab-btn active" onclick="switchTab(this,'tab-cat')">品类</div>
+      <div class="tab-btn" onclick="switchTab(this,'tab-region')">片区</div>
+      <div class="tab-btn" onclick="switchTab(this,'tab-center')">运营中心</div>
+    </div>
+    <div id="tab-cat" class="tab-panel active"><div id="chart-cat" style="height:320px;"></div></div>
+    <div id="tab-region" class="tab-panel"><div id="chart-region" style="height:320px;"></div></div>
+    <div id="tab-center" class="tab-panel"><div id="chart-center" style="height:320px;"></div></div>
+  </div>
+</div>
+
+<!-- 中国地图 -->
+<div class="chart-row">
+  <div class="chart-card chart-100">
+    <div class="chart-title">🗺️ 全国运营中心分布（气泡大小=客资数，颜色=销售额）</div>
+    <div id="chart-map" style="height:520px;"></div>
+  </div>
+</div>
+
+<!-- 汇总表 -->
+<div class="chart-row">
+  <div class="chart-card chart-50">
+    <div class="chart-title">📋 运营中心汇总</div>
+    <div style="max-height:320px;overflow-y:auto;">
+      <table class="data-table" id="table-center">
+        <thead><tr><th>运营中心</th><th>客资数</th><th>订单数</th><th>金额(万)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="chart-card chart-50">
+    <div class="chart-title">🏷️ 品牌汇总</div>
+    <div style="max-height:320px;overflow-y:auto;">
+      <table class="data-table" id="table-brand">
+        <thead><tr><th>品牌</th><th>客资数</th><th>订单数</th><th>金额(万)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <span>天猫新零售数据看板</span>
+  <span>|</span>
+  <span>数据实时更新</span>
+  <span>|</span>
+  <span>有效客资：高/低意向/无需外呼</span>
+</div>
+
+<script>
+// ===== DATA =====
+const RAW_DATA = {"kpi": {"total_leads": 118114, "valid_leads": 36048, "assigned": 33791, "followed": 32469, "total_orders": 18084, "total_amount": 99501504.59, "valid_rate": 30.5, "assign_rate": 93.7, "follow_rate": 96.1, "order_rate": 50.2}, "daily": [{"日期": "2026-01-23", "总客资": 551, "有效客资": 1, "分配数": 1, "跟进数": 1, "成交数": 29, "有效率": 0.0018, "分配率": 1.0, "跟进率": 1.0, "成交率": 29.0}, {"日期": "2026-01-24", "总客资": 735, "有效客资": 0, "分配数": 0, "跟进数": 0, "成交数": 25, "有效率": 0.0, "分配率": 0.0, "跟进率": 0.0, "成交率": 25.0}, {"日期": "2026-01-25", "总客资": 601, "有效客资": 0, "分配数": 0, "跟进数": 0, "成交数": 31, "有效率": 0.0, "分配率": 0.0, "跟进率": 0.0, "成交率": 31.0}, {"日期": "2026-01-26", "总客资": 621, "有效客资": 5, "分配数": 4, "跟进数": 4, "成交数": 18, "有效率": 0.0081, "分配率": 0.8, "跟进率": 1.0, "成交率": 3.6}, {"日期": "2026-01-27", "总客资": 1003, "有效客资": 25, "分配数": 18, "跟进数": 18, "成交数": 10, "有效率": 0.0249, "分配率": 0.72, "跟进率": 1.0, "成交率": 0.4}, {"日期": "2026-01-28", "总客资": 1485, "有效客资": 149, "分配数": 127, "跟进数": 126, "成交数": 20, "有效率": 0.1003, "分配率": 0.8523, "跟进率": 0.9921, "成交率": 0.1342}, {"日期": "2026-01-29", "总客资": 992, "有效客资": 277, "分配数": 226, "跟进数": 222, "成交数": 8, "有效率": 0.2792, "分配率": 0.8159, "跟进率": 0.9823, "成交率": 0.0289}, {"日期": "2026-01-30", "总客资": 1171, "有效客资": 374, "分配数": 304, "跟进数": 301, "成交数": 14, "有效率": 0.3194, "分配率": 0.8128, "跟进率": 0.9901, "成交率": 0.0374}, {"日期": "2026-01-31", "总客资": 1173, "有效客资": 302, "分配数": 246, "跟进数": 246, "成交数": 9, "有效率": 0.2575, "分配率": 0.8146, "跟进率": 1.0, "成交率": 0.0298}, {"日期": "2026-02-01", "总客资": 1254, "有效客资": 226, "分配数": 180, "跟进数": 179, "成交数": 13, "有效率": 0.1802, "分配率": 0.7965, "跟进率": 0.9944, "成交率": 0.0575}, {"日期": "2026-02-02", "总客资": 1163, "有效客资": 225, "分配数": 190, "跟进数": 189, "成交数": 10, "有效率": 0.1935, "分配率": 0.8444, "跟进率": 0.9947, "成交率": 0.0444}, {"日期": "2026-02-03", "总客资": 1058, "有效客资": 241, "分配数": 192, "跟进数": 192, "成交数": 14, "有效率": 0.2278, "分配率": 0.7967, "跟进率": 1.0, "成交率": 0.0581}, {"日期": "2026-02-04", "总客资": 1085, "有效客资": 340, "分配数": 274, "跟进数": 274, "成交数": 18, "有效率": 0.3134, "分配率": 0.8059, "跟进率": 1.0, "成交率": 0.0529}, {"日期": "2026-02-05", "总客资": 964, "有效客资": 251, "分配数": 211, "跟进数": 211, "成交数": 31, "有效率": 0.2604, "分配率": 0.8406, "跟进率": 1.0, "成交率": 0.1235}, {"日期": "2026-02-06", "总客资": 923, "有效客资": 187, "分配数": 157, "跟进数": 157, "成交数": 32, "有效率": 0.2026, "分配率": 0.8396, "跟进率": 1.0, "成交率": 0.1711}, {"日期": "2026-02-07", "总客资": 1044, "有效客资": 263, "分配数": 212, "跟进数": 212, "成交数": 17, "有效率": 0.2519, "分配率": 0.8061, "跟进率": 1.0, "成交率": 0.0646}, {"日期": "2026-02-08", "总客资": 1121, "有效客资": 195, "分配数": 168, "跟进数": 168, "成交数": 21, "有效率": 0.174, "分配率": 0.8615, "跟进率": 1.0, "成交率": 0.1077}, {"日期": "2026-02-09", "总客资": 1209, "有效客资": 235, "分配数": 198, "跟进数": 198, "成交数": 38, "有效率": 0.1944, "分配率": 0.8426, "跟进率": 1.0, "成交率": 0.1617}, {"日期": "2026-02-10", "总客资": 1017, "有效客资": 168, "分配数": 140, "跟进数": 140, "成交数": 21, "有效率": 0.1652, "分配率": 0.8333, "跟进率": 1.0, "成交率": 0.125}, {"日期": "2026-02-11", "总客资": 1048, "有效客资": 123, "分配数": 101, "跟进数": 101, "成交数": 38, "有效率": 0.1174, "分配率": 0.8211, "跟进率": 1.0, "成交率": 0.3089}, {"日期": "2026-02-12", "总客资": 995, "有效客资": 90, "分配数": 75, "跟进数": 75, "成交数": 11, "有效率": 0.0905, "分配率": 0.8333, "跟进率": 1.0, "成交率": 0.1222}, {"日期": "2026-02-13", "总客资": 853, "有效客资": 3, "分配数": 3, "跟进数": 3, "成交数": 1, "有效率": 0.0035, "分配率": 1.0, "跟进率": 1.0, "成交率": 0.3333}, {"日期": "2026-02-14", "总客资": 626, "有效客资": 13, "分配数": 12, "跟进数": 12, "成交数": 2, "有效率": 0.0208, "分配率": 0.9231, "跟进率": 1.0, "成交率": 0.1538}, {"日期": "2026-02-15", "总客资": 554, "有效客资": 7, "分配数": 7, "跟进数": 7, "成交数": 0, "有效率": 0.0126, "分配率": 1.0, "跟进率": 1.0, "成交率": 0.0}, {"日期": "2026-02-16", "总客资": 328, "有效客资": 0, "分配数": 0, "跟进数": 0, "成交数": 0, "有效率": 0.0, "分配率": 0.0, "跟进率": 0.0, "成交率": 0.0}, {"日期": "2026-02-17", "总客资": 386, "有效客资": 0, "分配数": 0, "跟进数": 0, "成交数": 0, "有效率": 0.0, "分配率": 0.0, "跟进率": 0.0, "成交率": 0.0}, {"日期": "2026-02-18", "总客资": 520, "有效客资": 16, "分配数": 14, "跟进数": 14, "成交数": 0, "有效率": 0.0308, "分配率": 0.875, "跟进率": 1.0, "成交率": 0.0}, {"日期": "2026-02-19", "总客资": 589, "有效客资": 35, "分配数": 29, "跟进数": 29, "成交数": 0, "有效率": 0.0594, "分配率": 0.8286, "跟进率": 1.0, "成交率": 0.0}, {"日期": "2026-02-20", "总客资": 751, "有效客资": 59, "分配数": 44, "跟进数": 44, "成交数": 0, "有效率": 0.0786, "分配率": 0.7458, "跟进率": 1.0, "成交率": 0.0}, {"日期": "2026-02-21", "总客资": 798, "有效客资": 64, "分配数": 61, "跟进数": 61, "成交数": 0, "有效率": 0.0802, "分配率": 0.9531, "跟进率": 1.0, "成交率": 0.0}, {"日期": "2026-02-22", "总客资": 1003, "有效客资": 104, "分配数": 90, "跟进数": 90, "成交数": 0, "有效率": 0.1037, "分配率": 0.8654, "跟进率": 1.0, "成交率": 0.0}, {"日期": "2026-02-23", "总客资": 1054, "有效客资": 128, "分配数": 121, "跟进数": 121, "成交数": 8, "有效率": 0.1214, "分配率": 0.9453, "跟进率": 1.0, "成交率": 0.0625}, {"日期": "2026-02-24", "总客资": 1489, "有效客资": 230, "分配数": 199, "跟进数": 199, "成交数": 54, "有效率": 0.1545, "分配率": 0.8652, "跟进率": 1.0, "成交率": 0.2348}, {"日期": "2026-02-25", "总客资": 1556, "有效客资": 289, "分配数": 257, "跟进数": 257, "成交数": 113, "有效率": 0.1857, "分配率": 0.8893, "跟进率": 1.0, "成交率": 0.391}, {"日期": "2026-02-26", "总客资": 1391, "有效客资": 181, "分配数": 154, "跟进数": 154, "成交数": 121, "有效率": 0.1301, "分配率": 0.8508, "跟进率": 1.0, "成交率": 0.6685}, {"日期": "2026-02-27", "总客资": 1351, "有效客资": 168, "分配数": 146, "跟进数": 145, "成交数": 138, "有效率": 0.1244, "分配率": 0.869, "跟进率": 0.9932, "成交率": 0.8214}, {"日期": "2026-02-28", "总客资": 1301, "有效客资": 139, "分配数": 122, "跟进数": 122, "成交数": 93, "有效率": 0.1068, "分配率": 0.8777, "跟进率": 1.0, "成交率": 0.6691}, {"日期": "2026-03-01", "总客资": 1957, "有效客资": 683, "分配数": 658, "跟进数": 658, "成交数": 73, "有效率": 0.349, "分配率": 0.9634, "跟进率": 1.0, "成交率": 0.1069}, {"日期": "2026-03-02", "总客资": 1836, "有效客资": 688, "分配数": 670, "跟进数": 669, "成交数": 62, "有效率": 0.3747, "分配率": 0.9738, "跟进率": 0.9985, "成交率": 0.0901}, {"日期": "2026-03-03", "总客资": 1877, "有效客资": 848, "分配数": 810, "跟进数": 809, "成交数": 95, "有效率": 0.4518, "分配率": 0.9552, "跟进率": 0.9988, "成交率": 0.112}, {"日期": "2026-03-04", "总客资": 1926, "有效客资": 741, "分配数": 722, "跟进数": 721, "成交数": 101, "有效率": 0.3847, "分配率": 0.9744, "跟进率": 0.9986, "成交率": 0.1363}, {"日期": "2026-03-05", "总客资": 2118, "有效客资": 876, "分配数": 859, "跟进数": 859, "成交数": 128, "有效率": 0.4136, "分配率": 0.9806, "跟进率": 1.0, "成交率": 0.1461}, {"日期": "2026-03-06", "总客资": 2237, "有效客资": 1119, "分配数": 1099, "跟进数": 1098, "成交数": 100, "有效率": 0.5002, "分配率": 0.9821, "跟进率": 0.9991, "成交率": 0.0894}, {"日期": "2026-03-07", "总客资": 1982, "有效客资": 862, "分配数": 845, "跟进数": 845, "成交数": 83, "有效率": 0.4349, "分配率": 0.9803, "跟进率": 1.0, "成交率": 0.0963}, {"日期": "2026-03-08", "总客资": 2035, "有效客资": 927, "分配数": 903, "跟进数": 897, "成交数": 127, "有效率": 0.4555, "分配率": 0.9741, "跟进率": 0.9934, "成交率": 0.137}, {"日期": "2026-03-09", "总客资": 2223, "有效客资": 1208, "分配数": 1190, "跟进数": 1190, "成交数": 149, "有效率": 0.5434, "分配率": 0.9851, "跟进率": 1.0, "成交率": 0.1233}, {"日期": "2026-03-10", "总客资": 1568, "有效客资": 774, "分配数": 761, "跟进数": 731, "成交数": 70, "有效率": 0.4936, "分配率": 0.9832, "跟进率": 0.9606, "成交率": 0.0904}, {"日期": "2026-03-11", "总客资": 1554, "有效客资": 723, "分配数": 705, "跟进数": 691, "成交数": 48, "有效率": 0.4653, "分配率": 0.9751, "跟进率": 0.9801, "成交率": 0.0664}, {"日期": "2026-03-12", "总客资": 1524, "有效客资": 694, "分配数": 676, "跟进数": 651, "成交数": 71, "有效率": 0.4554, "分配率": 0.9741, "跟进率": 0.963, "成交率": 0.1023}, {"日期": "2026-03-13", "总客资": 1480, "有效客资": 699, "分配数": 681, "跟进数": 663, "成交数": 56, "有效率": 0.4723, "分配率": 0.9742, "跟进率": 0.9736, "成交率": 0.0801}, {"日期": "2026-03-14", "总客资": 1601, "有效客资": 687, "分配数": 662, "跟进数": 630, "成交数": 42, "有效率": 0.4291, "分配率": 0.9636, "跟进率": 0.9517, "成交率": 0.0611}, {"日期": "2026-03-15", "总客资": 2168, "有效客资": 1199, "分配数": 1183, "跟进数": 1167, "成交数": 30, "有效率": 0.553, "分配率": 0.9867, "跟进率": 0.9865, "成交率": 0.025}, {"日期": "2026-03-16", "总客资": 1494, "有效客资": 653, "分配数": 627, "跟进数": 580, "成交数": 45, "有效率": 0.4371, "分配率": 0.9602, "跟进率": 0.925, "成交率": 0.0689}, {"日期": "2026-03-17", "总客资": 1687, "有效客资": 644, "分配数": 628, "跟进数": 606, "成交数": 131, "有效率": 0.3817, "分配率": 0.9752, "跟进率": 0.965, "成交率": 0.2034}, {"日期": "2026-03-18", "总客资": 2063, "有效客资": 736, "分配数": 708, "跟进数": 669, "成交数": 295, "有效率": 0.3568, "分配率": 0.962, "跟进率": 0.9449, "成交率": 0.4008}, {"日期": "2026-03-19", "总客资": 1857, "有效客资": 537, "分配数": 519, "跟进数": 474, "成交数": 448, "有效率": 0.2892, "分配率": 0.9665, "跟进率": 0.9133, "成交率": 0.8343}, {"日期": "2026-03-20", "总客资": 1994, "有效客资": 820, "分配数": 778, "跟进数": 713, "成交数": 93, "有效率": 0.4112, "分配率": 0.9488, "跟进率": 0.9165, "成交率": 0.1134}, {"日期": "2026-03-21", "总客资": 1867, "有效客资": 507, "分配数": 477, "跟进数": 455, "成交数": 55, "有效率": 0.2716, "分配率": 0.9408, "跟进率": 0.9539, "成交率": 0.1085}, {"日期": "2026-03-22", "总客资": 2065, "有效客资": 698, "分配数": 656, "跟进数": 627, "成交数": 64, "有效率": 0.338, "分配率": 0.9398, "跟进率": 0.9558, "成交率": 0.0917}, {"日期": "2026-03-23", "总客资": 1908, "有效客资": 658, "分配数": 591, "跟进数": 561, "成交数": 458, "有效率": 0.3449, "分配率": 0.8982, "跟进率": 0.9492, "成交率": 0.696}, {"日期": "2026-03-24", "总客资": 1870, "有效客资": 611, "分配数": 548, "跟进数": 513, "成交数": 537, "有效率": 0.3267, "分配率": 0.8969, "跟进率": 0.9361, "成交率": 0.8789}, {"日期": "2026-03-25", "总客资": 1773, "有效客资": 629, "分配数": 579, "跟进数": 544, "成交数": 605, "有效率": 0.3548, "分配率": 0.9205, "跟进率": 0.9396, "成交率": 0.9618}, {"日期": "2026-03-26", "总客资": 2026, "有效客资": 766, "分配数": 724, "跟进数": 661, "成交数": 1014, "有效率": 0.3781, "分配率": 0.9452, "跟进率": 0.913, "成交率": 1.3238}, {"日期": "2026-03-27", "总客资": 1991, "有效客资": 511, "分配数": 492, "跟进数": 419, "成交数": 1467, "有效率": 0.2567, "分配率": 0.9628, "跟进率": 0.8516, "成交率": 2.8708}, {"日期": "2026-03-28", "总客资": 1805, "有效客资": 498, "分配数": 457, "跟进数": 368, "成交数": 1398, "有效率": 0.2759, "分配率": 0.9177, "跟进率": 0.8053, "成交率": 2.8072}, {"日期": "2026-03-29", "总客资": 1998, "有效客资": 109, "分配数": 100, "跟进数": 75, "成交数": 1207, "有效率": 0.0546, "分配率": 0.9174, "跟进率": 0.75, "成交率": 11.0734}, {"日期": "2026-03-30", "总客资": 2319, "有效客资": 310, "分配数": 280, "跟进数": 204, "成交数": 613, "有效率": 0.1337, "分配率": 0.9032, "跟进率": 0.7286, "成交率": 1.9774}, {"日期": "2026-03-31", "总客资": 2559, "有效客资": 314, "分配数": 285, "跟进数": 230, "成交数": 372, "有效率": 0.1227, "分配率": 0.9076, "跟进率": 0.807, "成交率": 1.1847}, {"日期": "2026-04-01", "总客资": 2772, "有效客资": 1337, "分配数": 1264, "跟进数": 1230, "成交数": 165, "有效率": 0.4823, "分配率": 0.9454, "跟进率": 0.9731, "成交率": 0.1234}, {"日期": "2026-04-02", "总客资": 2928, "有效客资": 1687, "分配数": 1624, "跟进数": 1593, "成交数": 175, "有效率": 0.5762, "分配率": 0.9627, "跟进率": 0.9809, "成交率": 0.1037}, {"日期": "2026-04-03", "总客资": 1986, "有效客资": 903, "分配数": 854, "跟进数": 836, "成交数": 94, "有效率": 0.4547, "分配率": 0.9457, "跟进率": 0.9789, "成交率": 0.1041}, {"日期": "2026-04-04", "总客资": 2008, "有效客资": 904, "分配数": 831, "跟进数": 797, "成交数": 77, "有效率": 0.4502, "分配率": 0.9192, "跟进率": 0.9591, "成交率": 0.0852}, {"日期": "2026-04-05", "总客资": 2193, "有效客资": 889, "分配数": 843, "跟进数": 820, "成交数": 77, "有效率": 0.4054, "分配率": 0.9483, "跟进率": 0.9727, "成交率": 0.0866}, {"日期": "2026-04-06", "总客资": 2143, "有效客资": 792, "分配数": 723, "跟进数": 693, "成交数": 92, "有效率": 0.3696, "分配率": 0.9129, "跟进率": 0.9585, "成交率": 0.1162}, {"日期": "2026-04-07", "总客资": 2388, "有效客资": 688, "分配数": 637, "跟进数": 595, "成交数": 1659, "有效率": 0.2881, "分配率": 0.9259, "跟进率": 0.9341, "成交率": 2.4113}, {"日期": "2026-04-08", "总客资": 2304, "有效客资": 784, "分配数": 735, "跟进数": 688, "成交数": 1913, "有效率": 0.3403, "分配率": 0.9375, "跟进率": 0.9361, "成交率": 2.4401}, {"日期": "2026-04-09", "总客资": 2167, "有效客资": 824, "分配数": 758, "跟进数": 685, "成交数": 1123, "有效率": 0.3802, "分配率": 0.9199, "跟进率": 0.9037, "成交率": 1.3629}, {"日期": "2026-04-10", "总客资": 2100, "有效客资": 398, "分配数": 366, "跟进数": 282, "成交数": 1346, "有效率": 0.1895, "分配率": 0.9196, "跟进率": 0.7705, "成交率": 3.3819}], "brand_sales": {"美的": 88072444.56, "小天鹅": 5952042.55, "COLMO": 5180125.48, "东芝": 296892.0}, "brand_leads": {"COLMO": 5893, "东芝": 9398, "小天鹅": 26237, "美的": 76586}, "cat_sales": {"空调": 30563680.63, "冰箱": 27515495.06, "厨热": 25660713.03, "洗衣机": 15761615.87}, "region_sales": {"华中": 30509036.57, "华东": 23768682.37, "华南": 23592653.04, "华北": 16573788.88, "西部": 5057343.73}, "center_sales": {"合肥": 16186773.44, "长沙": 10545388.49, "福州": 9635526.61, "广州": 9585637.16, "南昌": 8343737.33, "杭州": 6553983.7, "济南": 6185327.91, "徐州": 5629746.04, "太原": 3586351.19, "深圳": 3246219.41, "北京": 3046067.5, "武汉": 2950535.06, "重庆": 2483221.84, "石家庄": 2330801.17, "南京": 2073127.05}, "map_points": [], "center_summary": [{"name": "杭州", "客资数": 11757, "订单数": 1040, "金额(万)": 655.4}, {"name": "深圳", "客资数": 8158, "订单数": 592, "金额(万)": 324.62}, {"name": "广州", "客资数": 8020, "订单数": 1776, "金额(万)": 958.56}, {"name": "南京", "客资数": 6303, "订单数": 430, "金额(万)": 207.31}, {"name": "合肥", "客资数": 6291, "订单数": 3377, "金额(万)": 1618.68}, {"name": "北京", "客资数": 5813, "订单数": 499, "金额(万)": 304.61}, {"name": "福州", "客资数": 5379, "订单数": 1543, "金额(万)": 963.55}, {"name": "长沙", "客资数": 5145, "订单数": 2111, "金额(万)": 1054.54}, {"name": "武汉", "客资数": 4634, "订单数": 596, "金额(万)": 295.05}, {"name": "南昌", "客资数": 4533, "订单数": 1368, "金额(万)": 834.37}, {"name": "济南", "客资数": 4457, "订单数": 1135, "金额(万)": 618.53}, {"name": "上海", "客资数": 4040, "订单数": 191, "金额(万)": 116.81}, {"name": "成都", "客资数": 3761, "订单数": 60, "金额(万)": 77.83}, {"name": "未知", "客资数": 3501, "订单数": 0, "金额(万)": 0.0}, {"name": "郑州", "客资数": 3444, "订单数": 147, "金额(万)": 81.88}, {"name": "重庆", "客资数": 3129, "订单数": 370, "金额(万)": 248.32}, {"name": "徐州", "客资数": 2941, "订单数": 1129, "金额(万)": 562.97}, {"name": "青岛", "客资数": 2863, "订单数": 45, "金额(万)": 20.95}, {"name": "南宁", "客资数": 2848, "订单数": 109, "金额(万)": 53.43}, {"name": "黑吉", "客资数": 2724, "订单数": 19, "金额(万)": 16.87}, {"name": "沈阳", "客资数": 2632, "订单数": 218, "金额(万)": 104.7}, {"name": "石家庄", "客资数": 2459, "订单数": 290, "金额(万)": 233.08}, {"name": "西安", "客资数": 2455, "订单数": 95, "金额(万)": 45.04}, {"name": "太原", "客资数": 2337, "订单数": 595, "金额(万)": 358.64}, {"name": "昆明", "客资数": 2133, "订单数": 149, "金额(万)": 92.19}, {"name": "贵阳", "客资数": 1704, "订单数": 71, "金额(万)": 42.35}, {"name": "南阳", "客资数": 1700, "订单数": 1, "金额(万)": 0.75}, {"name": "甘青宁", "客资数": 1570, "订单数": 0, "金额(万)": 0.0}, {"name": "乌鲁木齐", "客资数": 726, "订单数": 0, "金额(万)": 0.0}, {"name": "海口", "客资数": 657, "订单数": 128, "金额(万)": 59.09}], "brand_summary": [{"name": "美的", "客资数": 76586, "订单数": 16521, "金额(万)": 8807.24}, {"name": "小天鹅", "客资数": 26237, "订单数": 1020, "金额(万)": 595.2}, {"name": "东芝", "客资数": 9398, "订单数": 35, "金额(万)": 29.69}, {"name": "COLMO", "客资数": 5893, "订单数": 508, "金额(万)": 518.01}], "brands": ["COLMO", "东芝", "小天鹅", "美的"], "cats": ["冰箱", "厨热", "洗衣机", "空调"], "regions": ["华东", "华中", "华北", "华南", "未知", "西部"], "centers": ["上海", "乌鲁木齐", "北京", "南京", "南宁", "南昌", "南阳", "合肥", "太原", "广州", "徐州", "成都", "昆明", "未知", "杭州", "武汉", "沈阳", "济南", "海口", "深圳", "甘青宁", "石家庄", "福州", "西安", "贵阳", "郑州", "重庆", "长沙", "青岛", "黑吉"], "min_date": "2026-01-23", "max_date": "2026-04-10"};
+
+// ===== STATE =====
+let state = {
+  dateStart: RAW_DATA.min_date,
+  dateEnd: RAW_DATA.max_date,
+  brands: RAW_DATA.brands,
+  cats: RAW_DATA.cats,
+  centers: RAW_DATA.centers,
+  regions: RAW_DATA.regions,
+};
+
+// ===== INIT =====
+const charts = {};
+
+function init() {
+  document.getElementById('data-range').textContent =
+    RAW_DATA.kpi.valid_leads + ' 有效客资 | ' + RAW_DATA.kpi.total_orders + ' 成交单';
+
+  document.getElementById('date-start').value = RAW_DATA.min_date;
+  document.getElementById('date-end').value = RAW_DATA.max_date;
+
+  // Populate multi-selects
+  function addOptions(id, items) {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '';
+    items.forEach(item => {
+      const opt = document.createElement('option');
+      opt.value = item;
+      opt.textContent = item;
+      sel.appendChild(opt);
+    });
+  }
+  addOptions('filter-brand', RAW_DATA.brands);
+  addOptions('filter-cat', RAW_DATA.cats);
+  addOptions('filter-center', RAW_DATA.centers);
+  addOptions('filter-region', RAW_DATA.regions);
+
+  // Select all by default
+  ['filter-brand','filter-cat','filter-center','filter-region'].forEach(id => {
+    const sel = document.getElementById(id);
+    Array.from(sel.options).forEach(o => o.selected = true);
+  });
+
+  // Init charts
+  charts.funnel = echarts.init(document.getElementById('chart-funnel'));
+  charts.daily = echarts.init(document.getElementById('chart-daily'));
+  charts.brand = echarts.init(document.getElementById('chart-brand'));
+  charts.cat = echarts.init(document.getElementById('chart-cat'));
+  charts.region = echarts.init(document.getElementById('chart-region'));
+  charts.center = echarts.init(document.getElementById('chart-center'));
+  charts.map = echarts.init(document.getElementById('chart-map'));
+
+  // Resize
+  window.addEventListener('resize', () => {
+    Object.values(charts).forEach(c => c.resize());
+  });
+
+  applyFilters();
+}
+
+function getSelectedMulti(id) {
+  const sel = document.getElementById(id);
+  return Array.from(sel.selectedOptions).map(o => o.value);
+}
+
+// ===== FILTER =====
+function applyFilters() {
+  state.dateStart = document.getElementById('date-start').value;
+  state.dateEnd = document.getElementById('date-end').value;
+  state.brands = getSelectedMulti('filter-brand');
+  state.cats = getSelectedMulti('filter-cat');
+  state.centers = getSelectedMulti('filter-center');
+  state.regions = getSelectedMulti('filter-region');
+
+  // Filter daily data
+  const filteredDaily = RAW_DATA.daily.filter(d => {
+    const dt = d['日期'].split('T')[0];
+    return dt >= state.dateStart && dt <= state.dateEnd;
+  });
+
+  // Filter summary data
+  const fc = f => {
+    let ok = true;
+    if (state.brands.length && !state.brands.includes(f.brand)) ok = false;
+    return ok;
+  };
+
+  // Compute KPI from filtered daily
+  let totalLeads = 0, validLeads = 0, assigned = 0, followed = 0, orderCount = 0;
+  filteredDaily.forEach(d => {
+    totalLeads += d['总客资'];
+    validLeads += d['有效客资'];
+    assigned += d['分配数'];
+    followed += d['跟进数'];
+    orderCount += d['成交数'];
+  });
+
+  // Brand sales filtered
+  let filteredBrandLeads = {}, filteredBrandSales = {};
+  Object.entries(RAW_DATA.brand_leads).forEach(([b, v]) => {
+    if (state.brands.includes(b)) filteredBrandLeads[b] = v;
+  });
+  Object.entries(RAW_DATA.brand_sales).forEach(([b, v]) => {
+    if (state.brands.includes(b)) filteredBrandSales[b] = v;
+  });
+
+  // Cat/region/center sales (no brand filter in this simple version - skip complex filter for now)
+  const filteredCatSales = RAW_DATA.cat_sales;
+  const filteredRegionSales = RAW_DATA.region_sales;
+  const filteredCenterSales = RAW_DATA.center_sales;
+
+  // Tables (full data)
+  const centerData = RAW_DATA.center_summary.filter(r => state.centers.includes(r.name));
+  const brandData = RAW_DATA.brand_summary.filter(r => state.brands.includes(r.name));
+
+  // Update KPI
+  document.getElementById('kpi-total').textContent = totalLeads.toLocaleString();
+  document.getElementById('kpi-valid').textContent = validLeads.toLocaleString();
+  document.getElementById('kpi-order').textContent = orderCount.toLocaleString();
+  const amtWan = RAW_DATA.kpi.total_amount / 10000;
+  document.getElementById('kpi-amount').textContent = amtWan >= 10000
+    ? (amtWan / 10000).toFixed(1) + ' 亿'
+    : amtWan.toFixed(1) + ' 万';
+
+  document.getElementById('kpi-total-rate').textContent = '';
+  document.getElementById('kpi-valid-rate').textContent = totalLeads > 0
+    ? '有效率 ' + (validLeads/totalLeads*100).toFixed(1) + '%' : '';
+  document.getElementById('kpi-order-rate').textContent = validLeads > 0
+    ? '成交率 ' + (orderCount/validLeads*100).toFixed(1) + '%' : '';
+  document.getElementById('kpi-amount-rate').textContent = amtWan >= 10000
+    ? '总金额' : '';
+
+  // Render charts
+  renderFunnel(totalLeads, validLeads, assigned, followed, orderCount);
+  renderDaily(filteredDaily);
+  renderBrand(filteredBrandLeads);
+  renderCatSales(filteredCatSales);
+  renderRegionSales(filteredRegionSales);
+  renderCenterSales(filteredCenterSales);
+  renderMap(RAW_DATA.map_points);
+  renderTables(centerData, brandData);
+}
+
+function resetFilters() {
+  ['filter-brand','filter-cat','filter-center','filter-region'].forEach(id => {
+    const sel = document.getElementById(id);
+    Array.from(sel.options).forEach(o => o.selected = true);
+  });
+  document.getElementById('date-start').value = RAW_DATA.min_date;
+  document.getElementById('date-end').value = RAW_DATA.max_date;
+  applyFilters();
+}
+
+// ===== CHARTS =====
+function renderFunnel(t, v, a, f, o) {
+  const colors = ['#5470c6','#91cc75','#fac858','#f093fb','#ee6666'];
+  const data = [
+    {name:'总客资', value: t},
+    {name:'有效客资', value: v},
+    {name:'分配数', value: a},
+    {name:'跟进数', value: f},
+    {name:'成交数', value: o}
+  ];
+  charts.funnel.setOption({
+    tooltip: {trigger:'item', formatter:p => p.name+': '+p.value.toLocaleString()},
+    color: colors,
+    series: [{
+      type: 'funnel', left: '15%', right: '15%', top: 30, bottom: 50,
+      min: 0, max: t || 1,
+      minSize: '0%', maxSize: '100%', gap: 3,
+      itemStyle: {borderColor:'#fff', borderWidth: 2, borderRadius: 4},
+      label: {show:true, position:'inside', formatter:p=>p.name+'\n'+p.value.toLocaleString(), fontSize:12},
+      data: data
+    }]
+  });
+}
+
+function renderDaily(daily) {
+  const dates = daily.map(d => d['日期'].split('T')[0]);
+  charts.daily.setOption({
+    tooltip: {trigger:'axis'},
+    legend: {top:0, data:['有效率','分配率','跟进率','成交率'], textStyle:{color:'#606776'}},
+    grid: {left:55, right:30, bottom:30, top:45},
+    xAxis: {type:'category', data:dates, axisLabel:{color:'#4a4e57', rotate:30}},
+    yAxis: {type:'value', axisLabel:{color:'#606776', formatter:v=>(v*100).toFixed(0)+'%'}, splitLine:{lineStyle:{color:'#ebeef5'}}},
+    series: [
+      {name:'有效率', type:'line', data:daily.map(d=>d['有效率']), smooth:true, lineStyle:{width:2.5,color:'#2db55d'}, itemStyle:{color:'#2db55d'}, symbol:'circle', symbolSize:5},
+      {name:'分配率', type:'line', data:daily.map(d=>d['分配率']), smooth:true, lineStyle:{width:2.5,color:'#f7ba5e'}, itemStyle:{color:'#f7ba5e'}, symbol:'circle', symbolSize:5},
+      {name:'跟进率', type:'line', data:daily.map(d=>d['跟进率']), smooth:true, lineStyle:{width:2.5,color:'#f97316'}, itemStyle:{color:'#f97316'}, symbol:'circle', symbolSize:5},
+      {name:'成交率', type:'line', data:daily.map(d=>d['成交率']), smooth:true, lineStyle:{width:2.5,color:'#ef4444'}, itemStyle:{color:'#ef4444'}, symbol:'circle', symbolSize:5},
+    ]
+  });
+}
+
+function renderBrand(brandLeads) {
+  const sorted = Object.entries(brandLeads).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const cats = sorted.map(x=>x[0]);
+  const vals = sorted.map(x=>x[1]);
+  charts.brand.setOption({
+    tooltip: {trigger:'axis', axisPointer:{type:'shadow'}, formatter:p=>p.name+': '+p.value.toLocaleString()},
+    grid: {left:10, right:20, bottom:10, top:10},
+    xAxis: {type:'value', axisLabel:{color:'#606776'}, splitLine:{lineStyle:{color:'#ebeef5'}}},
+    yAxis: {type:'category', data:cats.reverse(), axisLabel:{color:'#4a4e57', fontSize:11}},
+    series: [{
+      type:'bar', data:vals.reverse(), barMaxWidth:20,
+      itemStyle:{
+        color: new echarts.graphic.LinearGradient(0,0,1,0,[
+          {offset:0,color:'#4a90e2'},{offset:1,color:'#7c3aed'}]),
+        borderRadius:[0,4,4,0]
+      }
+    }]
+  });
+}
+
+function makeBarH(data, colors) {
+  if (typeof colors === 'string') colors = [colors, colors];
+  const sorted = Object.entries(data).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  const cats = sorted.map(x=>x[0]);
+  const vals = sorted.map(x=>x[1]);
+  return {
+    tooltip: {trigger:'axis', axisPointer:{type:'shadow'}, formatter:p=>p.name+': '+Number(p.value).toLocaleString()+'元'},
+    grid: {left:100, right:60, bottom:20, top:10},
+    xAxis: {type:'value', axisLabel:{color:'#606776'}, splitLine:{lineStyle:{color:'#ebeef5'}}},
+    yAxis: {type:'category', data:cats.reverse(), axisLabel:{color:'#4a4e57', fontSize:11}},
+    series: [{
+      type:'bar', data:vals.reverse(), barMaxWidth:22,
+      itemStyle:{
+        color: new echarts.graphic.LinearGradient(0,0,1,0,[
+          {offset:0,color:colors[0]},{offset:1,color:colors[1]||colors[0]}]),
+        borderRadius:[0,4,4,0]
+      }
+    }]
+  };
+}
+
+function renderCatSales(data) { charts.cat.setOption(makeBarH(data, ['#667eea','#764ba2'])); }
+function renderRegionSales(data) { charts.region.setOption(makeBarH(data, ['#4facfe','#00f2fe'])); }
+function renderCenterSales(data) { charts.center.setOption(makeBarH(data, ['#f7ba5e','#f97316'])); }
+
+function renderMap(points) {
+  const coords = {};
+  const CITY_COORDS = {
+    '北京':[116.4074,39.9042],'上海':[121.4737,31.2304],'广州':[113.2644,23.1291],
+    '深圳':[114.0579,22.5431],'杭州':[120.1551,30.2741],'成都':[104.0668,30.5728],
+    '武汉':[114.3055,30.5931],'西安':[108.9402,34.3416],'南京':[118.7674,32.0415],
+    '重庆':[106.5044,29.5582],'天津':[117.1902,39.1256],'苏州':[120.5853,31.2989],
+    '长沙':[112.9388,28.2282],'郑州':[113.6254,34.7466],'沈阳':[123.4315,41.8057],
+    '青岛':[120.3826,36.0671],'宁波':[121.5438,29.8683],'无锡':[120.3136,31.4908],
+    '佛山':[113.1224,23.0215],'东莞':[113.7518,23.0205],'合肥':[117.2272,31.8206],
+    '福州':[119.2965,26.0745],'厦门':[118.0895,24.4798],'哈尔滨':[126.5364,45.8022],
+    '长春':[125.3235,43.8171],'石家庄':[114.5149,38.0428],'太原':[112.5624,37.8735],
+    '济南':[117.0009,36.6758],'昆明':[102.8329,24.8801],'南宁':[108.3661,22.8176],
+    '南昌':[115.8582,28.6820],'贵阳':[106.6302,26.6477],'兰州':[103.8343,36.0611],
+    '乌鲁木齐':[87.6168,43.8256],'呼和浩特':[111.7510,40.8415],'海口':[110.1999,20.0440],
+  };
+  // Register city coords for geo
+  Object.entries(CITY_COORDS).forEach(([k,v]) => coords[k] = v);
+
+  const maxAmt = Math.max(...points.map(p=>p.value[2]), 1);
+  charts.map.setOption({
+    tooltip: {trigger:'item', formatter:p=>p.name+'<br/>销售额: ¥'+Number(p.value&&p.value[2]||0).toLocaleString()},
+    geo: {
+      map: 'china', roam: true, zoom: 1.2,
+      itemStyle: {areaColor:'#e8f4ff', borderColor:'#a0c4e8', borderWidth:1},
+      emphasis: {itemStyle:{areaColor:'#c8e6ff'}},
+      label: {show:false}
+    },
+    series: [{
+      type: 'effectScatter', coordinateSystem: 'geo',
+      data: points.map(p => ({name:p.name, value:p.value})),
+      symbolSize: p => Math.max(8, Math.min(40, p.value[2]/maxAmt*500)),
+      itemStyle: {color:'#4a90e2', opacity:0.85},
+      showEffectOn: 'emphasis',
+      rippleEffect: {brushType:'stroke', scale:3},
+      label: {show:true, formatter:'{b}', position:'right', fontSize:11, color:'#333'},
+    }]
+  });
+}
+
+function renderTables(centerData, brandData) {
+  function fillTable(id, data) {
+    const tbody = document.querySelector('#'+id+' tbody');
+    tbody.innerHTML = '';
+    data.forEach(row => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${row.name}</td><td>${row.客资数.toLocaleString()}</td><td>${row.订单数.toLocaleString()}</td><td>${row['金额(万)'].toLocaleString()}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  fillTable('table-center', centerData);
+  fillTable('table-brand', brandData);
+}
+
+function switchTab(btn, panelId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(panelId).classList.add('active');
+  // Resize chart
+  const chartMap = {tab-cat':'chart-cat','tab-region':'chart-region','tab-center':'chart-center'};
+  if (chartMap[panelId]) charts[chartMap[panelId]].resize();
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
