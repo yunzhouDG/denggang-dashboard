@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>测试地图</title>
+<script src="https://unpkg.com/echarts@5.4.3/dist/echarts.min.js"></script>
+</head>
+<body>
+<div id="map" style="width:800px;height:600px;border:1px solid #ccc;margin:20px"></div>
+<div id="status" style="margin:20px;font-family:monospace;font-size:12px"></div>
+<script>
+var status = document.getElementById('status');
+status.textContent = 'ECharts: ' + typeof echarts + '\nFetching China GeoJSON...';
+
+fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
+  .then(r => r.json())
+  .then(geoJson => {
+    status.textContent += '\nGeoJSON OK, features: ' + geoJson.features.length;
+    echarts.registerMap('china', geoJson);
+    status.textContent += '\nChina map registered';
+
+    var chart = echarts.init(document.getElementById('map'));
+    chart.setOption({
+      tooltip: { trigger: 'item' },
+      series: [{
+        type: 'map',
+        map: 'china',
+        roam: true,
+        itemStyle: { areaColor: '#cfe2f3', borderColor: '#999' },
+        label: { show: true, fontSize: 8 },
+        data: [
+          { name: '北京', value: 100 },
+          { name: '广东', value: 200 },
+          { name: '浙江', value: 150 }
+        ]
+      }]
+    });
+    status.textContent += '\nChart rendered!';
+  })
+  .catch(e => {
+    status.textContent += '\nError: ' + e.message;
+  });
+</script>
+</body>
+</html>
