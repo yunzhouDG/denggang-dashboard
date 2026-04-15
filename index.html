@@ -164,8 +164,7 @@ function init() {
       type: 'funnel', left: '5%', top: 10, bottom: 10, width: '90%',
       min: 0, max: D.kpi.total_leads,
       minSize: '12%', maxSize: '85%', gap: 4,
-      label: { show: true, position: 'inside', formatter: '{b}
-{c}', fontSize: 12, color: '#fff' },
+      label: { show: true, position: 'inside', formatter: function(p){return p.name+'\n'+p.value}, fontSize: 12, color: '#fff' },
       itemStyle: { borderRadius: 4, borderWidth: 0 },
       data: [
         { name: '总客资', value: D.kpi.total_leads, itemStyle: { color: '#1677ff' } },
