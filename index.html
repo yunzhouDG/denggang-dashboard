@@ -254,62 +254,69 @@ function doFilter() {
   var brand = document.getElementById('f-brand').value;
   var cat = document.getElementById('f-cat').value;
   var center = document.getElementById('f-center').value;
-  var sDate = document.getElementById('f-start').value;
-  var eDate = document.getElementById('f-end').value;
+  var sDate = document.getElementById('f-start').value.replace(/-/g,'');
+  var eDate = document.getElementById('f-end').value.replace(/-/g,'');
   
-  // Build a filtered copy of all data
+  // Build a filtered copy
   var fd = JSON.parse(JSON.stringify(RAW));
   
-  // Filter brand_summary
+  // ── Step1: filter daily by date range ─────────────
+  fd.daily = RAW.daily.filter(d => {
+    var ds = d['日期'].replace(/-/g,'');
+    return (!sDate || ds >= sDate) && (!eDate || ds <= eDate);
+  });
+  
+  // ── Step2: recalculate KPI from filtered daily ────
+  var dk = fd.daily.reduce((s,d) => {
+    s.leads += d['总客资']||0;
+    s.valid += d['有效客资']||0;
+    s.assigned += d['分配数']||0;
+    s.followed += d['跟进数']||0;
+    s.orders += d['成交数']||0;
+    return s;
+  }, {leads:0,valid:0,assigned:0,followed:0,orders:0});
+  
+  fd.kpi.total_leads = dk.leads;
+  fd.kpi.valid_leads = dk.valid;
+  fd.kpi.assigned = dk.assigned;
+  fd.kpi.followed = dk.followed;
+  fd.kpi.total_orders = dk.orders;
+  // amount stays from brand/center filter below, or proportional if date-only
+  if (!brand && !center) {
+    var ratio = RAW.kpi.total_leads > 0 ? dk.leads / RAW.kpi.total_leads : 0;
+    fd.kpi.total_amount = RAW.kpi.total_amount * ratio;
+  }
+  
+  // ── Step3: filter by brand ─────────────────────────
   if (brand) {
     fd.brand_summary = RAW.brand_summary.filter(b => b['name'] === brand);
-    var bkpi = fd.brand_summary.reduce((s,b) => {
-      s.leads += b['客资数']||0;
-      s.orders += b['订单数']||0;
-      s.amount += (b['金额(万)']||0)*10000;
-      return s;
+    var bk = fd.brand_summary.reduce((s,b) => {
+      s.leads += b['客资数']||0; s.orders += b['订单数']||0; s.amount += (b['金额(万)']||0)*10000; return s;
     }, {leads:0,orders:0,amount:0});
-    fd.kpi.total_leads = bkpi.leads;
-    fd.kpi.total_orders = bkpi.orders;
-    fd.kpi.total_amount = bkpi.amount;
-    fd.kpi.valid_leads = Math.round(bkpi.leads * (RAW.kpi.valid_rate/100));
-    fd.kpi.assigned = Math.round(bkpi.leads * (RAW.kpi.assign_rate/100));
-    fd.kpi.followed = Math.round(bkpi.leads * (RAW.kpi.follow_rate/100));
     fd.brand_leads = RAW.brand_leads.filter(b => b['品牌'] === brand);
-    fd.center_summary = RAW.center_summary; // keep for display
+    // Override KPI with brand values (brand filter always wins)
+    fd.kpi.total_leads = bk.leads;
+    fd.kpi.valid_leads = Math.round(bk.leads * (RAW.kpi.valid_rate/100));
+    fd.kpi.assigned = Math.round(bk.leads * (RAW.kpi.assign_rate/100));
+    fd.kpi.followed = Math.round(bk.leads * (RAW.kpi.follow_rate/100));
+    fd.kpi.total_orders = bk.orders;
+    fd.kpi.total_amount = bk.amount;
   }
   
-  // Filter center_summary
+  // ── Step4: filter by center ────────────────────────
   if (center) {
     fd.center_summary = RAW.center_summary.filter(c => c['name'] === center);
-    var ckpi = fd.center_summary.reduce((s,c) => {
-      s.leads += c['客资数']||0;
-      s.orders += c['订单数']||0;
-      s.amount += (c['金额(万)']||0)*10000;
-      return s;
-    }, {leads:0,orders:0,amount:0});
     if (!brand) {
-      fd.kpi.total_leads = ckpi.leads;
-      fd.kpi.total_orders = ckpi.orders;
-      fd.kpi.total_amount = ckpi.amount;
+      var ck = fd.center_summary.reduce((s,c) => {
+        s.leads += c['客资数']||0; s.orders += c['订单数']||0; s.amount += (c['金额(万)']||0)*10000; return s;
+      }, {leads:0,orders:0,amount:0});
+      fd.kpi.total_leads = ck.leads;
+      fd.kpi.valid_leads = Math.round(ck.leads * (RAW.kpi.valid_rate/100));
+      fd.kpi.assigned = Math.round(ck.leads * (RAW.kpi.assign_rate/100));
+      fd.kpi.followed = Math.round(ck.leads * (RAW.kpi.follow_rate/100));
+      fd.kpi.total_orders = ck.orders;
+      fd.kpi.total_amount = ck.amount;
     }
-  }
-  
-  // Filter daily by date range
-  if (sDate || eDate) {
-    fd.daily = RAW.daily.filter(d => {
-      var ds = d['日期'].replace(/-/g,'');
-      return (!sDate || ds >= sDate.replace(/-/g,'')) && (!eDate || ds <= eDate.replace(/-/g,''));
-    });
-  }
-  
-  // Recalculate map_points based on brand+center filters
-  if (brand || center) {
-    fd.map_points = RAW.map_points.filter(p => {
-      if (brand && center) return p.name === brand || p.name === center;
-      if (brand) return p.name === brand;
-      return p.name === center;
-    });
   }
   
   render(fd);
