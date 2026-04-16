@@ -254,31 +254,61 @@ function doFilter() {
   var brand = document.getElementById('f-brand').value;
   var cat = document.getElementById('f-cat').value;
   var center = document.getElementById('f-center').value;
+  var sDate = document.getElementById('f-start').value;
+  var eDate = document.getElementById('f-end').value;
   
-  // Build a filtered copy of data
+  // Build a filtered copy of all data
   var fd = JSON.parse(JSON.stringify(RAW));
   
   // Filter brand_summary
   if (brand) {
     fd.brand_summary = RAW.brand_summary.filter(b => b['name'] === brand);
-    fd.kpi.total_leads = fd.brand_summary.reduce((s,b) => s + (b['客资数']||0), 0);
-    fd.kpi.total_orders = fd.brand_summary.reduce((s,b) => s + (b['订单数']||0), 0);
-    fd.kpi.total_amount = fd.brand_summary.reduce((s,b) => s + (b['金额(万)']||0)*10000, 0);
-    fd.kpi.valid_leads = Math.round(fd.kpi.total_leads * (RAW.kpi.valid_rate/100));
+    var bkpi = fd.brand_summary.reduce((s,b) => {
+      s.leads += b['客资数']||0;
+      s.orders += b['订单数']||0;
+      s.amount += (b['金额(万)']||0)*10000;
+      return s;
+    }, {leads:0,orders:0,amount:0});
+    fd.kpi.total_leads = bkpi.leads;
+    fd.kpi.total_orders = bkpi.orders;
+    fd.kpi.total_amount = bkpi.amount;
+    fd.kpi.valid_leads = Math.round(bkpi.leads * (RAW.kpi.valid_rate/100));
+    fd.kpi.assigned = Math.round(bkpi.leads * (RAW.kpi.assign_rate/100));
+    fd.kpi.followed = Math.round(bkpi.leads * (RAW.kpi.follow_rate/100));
+    fd.brand_leads = RAW.brand_leads.filter(b => b['品牌'] === brand);
+    fd.center_summary = RAW.center_summary; // keep for display
   }
   
   // Filter center_summary
   if (center) {
     fd.center_summary = RAW.center_summary.filter(c => c['name'] === center);
+    var ckpi = fd.center_summary.reduce((s,c) => {
+      s.leads += c['客资数']||0;
+      s.orders += c['订单数']||0;
+      s.amount += (c['金额(万)']||0)*10000;
+      return s;
+    }, {leads:0,orders:0,amount:0});
+    if (!brand) {
+      fd.kpi.total_leads = ckpi.leads;
+      fd.kpi.total_orders = ckpi.orders;
+      fd.kpi.total_amount = ckpi.amount;
+    }
   }
   
   // Filter daily by date range
-  var sDate = document.getElementById('f-start').value;
-  var eDate = document.getElementById('f-end').value;
   if (sDate || eDate) {
     fd.daily = RAW.daily.filter(d => {
       var ds = d['日期'].replace(/-/g,'');
       return (!sDate || ds >= sDate.replace(/-/g,'')) && (!eDate || ds <= eDate.replace(/-/g,''));
+    });
+  }
+  
+  // Recalculate map_points based on brand+center filters
+  if (brand || center) {
+    fd.map_points = RAW.map_points.filter(p => {
+      if (brand && center) return p.name === brand || p.name === center;
+      if (brand) return p.name === brand;
+      return p.name === center;
     });
   }
   
