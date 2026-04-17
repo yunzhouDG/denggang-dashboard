@@ -331,14 +331,14 @@ function initChart(id) { return echarts.init(document.getElementById(id)); }
         emphasis: { focus: 'series' }
       },
       {
-        name: '订单数', type: 'line', smooth: true, symbol: 'none',
+        name: '订单数', type: 'line', smooth: true, symbol: 'circle', symbolSize: 4,
         data: d.map(x => x['订单数']),
         yAxisIndex: 1,
-        lineStyle: { color: '#fb923c', width: 2 },
+        lineStyle: { color: '#fb923c', width: 2.5 },
         itemStyle: { color: '#fb923c' },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(251,146,60,0.3)' },
+            { offset: 0, color: 'rgba(251,146,60,0.25)' },
             { offset: 1, color: 'rgba(251,146,60,0.02)' }
           ])
         },
