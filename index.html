@@ -174,7 +174,7 @@
 
 <div class="charts-grid">
   <div class="chart-card full">
-    <div class="chart-title">📈 每日趋势（客资数 vs 订单数）</div>
+    <div class="chart-title">📊 每日趋势（客资数 vs 订单数）</div>
     <div class="chart-box" id="dailyTrendChart" style="height:320px"></div>
   </div>
   <div class="chart-card span2">
@@ -263,7 +263,7 @@ function initChart(id) { return echarts.init(document.getElementById(id)); }
   window.addEventListener('resize', () => chart.resize());
 })();
 
-// ===== Daily Trend (Area) =====
+// ===== Daily Trend (Dual Y-axis Area) =====
 (function() {
   const chart = initChart('dailyTrendChart');
   const d = DATA.dailyTrend;
@@ -310,8 +310,8 @@ function initChart(id) { return echarts.init(document.getElementById(id)); }
       },
       {
         type: 'value', name: '订单数', position: 'right',
-        nameTextStyle: { color: '#fb923c', fontSize: 11 },
-        axisLabel: { color: '#fb923c' },
+        nameTextStyle: { color: '#f472b6', fontSize: 11 },
+        axisLabel: { color: '#f472b6' },
         splitLine: { show: false }
       }
     ],
