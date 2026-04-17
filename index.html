@@ -293,8 +293,8 @@ function initChart(id) { return echarts.init(document.getElementById(id)); }
   chart.setOption({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 11 } },
-    grid: { left: 50, right: 50, top: 36, bottom: 10 },
-    xAxis: { type: 'category', data: d.map(x => x['意向品牌']), axisLabel: { color: '#e2e8f0', fontSize: 12 } },
+    grid: { left: 50, right: 50, top: 36, bottom: 50 },
+    xAxis: { type: 'category', data: d.map(x => x['意向品牌']), axisLabel: { color: '#e2e8f0', fontSize: 11, rotate: 35, interval: 0 }, axisTick: { alignWithLabel: true } },
     yAxis: [
       { type: 'value', axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: '#1e293b' } } },
       { type: 'value', axisLabel: { color: '#94a3b8', formatter: '{value}万' }, splitLine: { show: false } }
@@ -315,8 +315,8 @@ function initChart(id) { return echarts.init(document.getElementById(id)); }
   chart.setOption({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 11 } },
-    grid: { left: 50, right: 50, top: 36, bottom: 10 },
-    xAxis: { type: 'category', data: d.map(x => x['品类']), axisLabel: { color: '#e2e8f0', fontSize: 12 } },
+    grid: { left: 50, right: 50, top: 36, bottom: 50 },
+    xAxis: { type: 'category', data: d.map(x => x['品类']), axisLabel: { color: '#e2e8f0', fontSize: 11, rotate: 35, interval: 0 }, axisTick: { alignWithLabel: true } },
     yAxis: [
       { type: 'value', axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: '#1e293b' } } },
       { type: 'value', axisLabel: { color: '#94a3b8', formatter: '{value}万' }, splitLine: { show: false } }
