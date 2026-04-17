@@ -79,9 +79,9 @@ tr:hover td{background:#e6f4ff}
 
 <div class="filter-bar">
   <label>日期：</label>
-  <input type="date" id="f-start" value="2026-01-01">
+  <input type="date" id="f-start" value="2026-01-23">
   <span style="color:#999;font-size:13px">至</span>
-  <input type="date" id="f-end"   value="2026-12-31">
+  <input type="date" id="f-end"   value="2026-04-16">
   <label>品牌：</label>
   <select id="f-brand"><option value="">全部</option>
     <option value="COLMO">COLMO</option>
@@ -304,6 +304,7 @@ function renderFunnel(k){
 }
 
 function renderTrend(daily){
+  console.log('[DEBUG] renderTrend daily length:', (daily||[]).length, daily&&daily.length>0 ? daily[0] : 'empty');
   var c=echarts.init(document.getElementById('c-trend'));
   var dates=daily.map(function(d){return d['日期'].slice(5)});
   c.setOption({
@@ -331,6 +332,7 @@ function renderTrend(daily){
 }
 
 function renderBrand(data){
+  console.log('[DEBUG] renderBrand data:', (data||[]).length, data&&data.length>0 ? data[0] : 'empty');
   if(!data||!data.length)return;
   var c=echarts.init(document.getElementById('c-brand'));
   var s=[].concat(data).sort(function(a,b){return b['客资数']-a['客资数']});
@@ -525,6 +527,10 @@ function renderCenterTable(data){
 }
 
 function render(d){
+  console.log('[DEBUG] render called');
+  console.log('[DEBUG] d.daily length:', (d.daily||[]).length);
+  console.log('[DEBUG] d.brand_leads length:', (d.brand_leads||[]).length);
+  console.log('[DEBUG] d.cat_sales length:', (d.cat_sales||[]).length);
   for(var i=0;i<_charts.length;i++){
     try{ if(_charts[i]) _charts[i].dispose(); }catch(e){}
   }
@@ -591,8 +597,8 @@ function doFilter(){
 }
 
 function resetFilter(){
-  document.getElementById('f-start').value='2026-01-01';
-  document.getElementById('f-end').value='2026-12-31';
+  document.getElementById('f-start').value='2026-01-23';
+  document.getElementById('f-end').value='2026-04-16';
   document.getElementById('f-brand').value='';
   document.getElementById('f-cat').value='';
   document.getElementById('f-center').value='';
