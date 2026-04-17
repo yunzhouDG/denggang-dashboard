@@ -263,17 +263,17 @@ function initChart(id) { return echarts.init(document.getElementById(id)); }
   window.addEventListener('resize', () => chart.resize());
 })();
 
-// ===== Daily Trend (Bar + Line Combo) =====
+// ===== Daily Trend (Area) =====
 (function() {
   const chart = initChart('dailyTrendChart');
   const d = DATA.dailyTrend;
-  const dates = d.map(x => x['日期_str']);
+  const dates = d.map(x => x['日期_str'].slice(5));
   chart.setOption({
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'cross' },
       formatter: function(params) {
-        let s = '<div style="font-weight:600;margin-bottom:4px">' + params[0].axisValue + '</div>';
+        let s = '<div style="font-weight:600;margin-bottom:4px">' + d[params[0].dataIndex]['日期_str'] + '</div>';
         params.forEach(p => {
           s += '<div style="display:flex;align-items:center;gap:6px">'
             + p.marker + p.seriesName + ': <b>' + p.value.toLocaleString() + '</b></div>';
@@ -317,30 +317,29 @@ function initChart(id) { return echarts.init(document.getElementById(id)); }
     ],
     series: [
       {
-        name: '客资数', type: 'bar',
+        name: '客资数', type: 'line', smooth: true, symbol: 'none',
         data: d.map(x => x['客资数']),
         yAxisIndex: 0,
-        barMaxWidth: 8,
-        itemStyle: {
+        lineStyle: { color: '#60a5fa', width: 2 },
+        itemStyle: { color: '#60a5fa' },
+        areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#60a5fa' },
-            { offset: 1, color: '#1e40af' }
-          ]),
-          borderRadius: [3, 3, 0, 0]
+            { offset: 0, color: 'rgba(96,165,250,0.35)' },
+            { offset: 1, color: 'rgba(96,165,250,0.02)' }
+          ])
         },
         emphasis: { focus: 'series' }
       },
       {
-        name: '订单数', type: 'line', smooth: true,
+        name: '订单数', type: 'line', smooth: true, symbol: 'none',
         data: d.map(x => x['订单数']),
         yAxisIndex: 1,
-        lineStyle: { color: '#fb923c', width: 2.5 },
+        lineStyle: { color: '#fb923c', width: 2 },
         itemStyle: { color: '#fb923c' },
-        symbol: 'none',
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(251,146,60,0.15)' },
-            { offset: 1, color: 'rgba(251,146,60,0.01)' }
+            { offset: 0, color: 'rgba(251,146,60,0.3)' },
+            { offset: 1, color: 'rgba(251,146,60,0.02)' }
           ])
         },
         emphasis: { focus: 'series' }
