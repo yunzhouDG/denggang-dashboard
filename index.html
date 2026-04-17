@@ -355,11 +355,13 @@ var _heatPushed = false;
 
 function fm(v){
   v=parseFloat(v)||0;
+  if(!isFinite(v))v=0;
   if(Math.abs(v)>=1e8)return(v/1e8).toFixed(1)+'亿';
   if(Math.abs(v)>=1e4)return(v/1e4).toFixed(1)+'万';
   return v.toLocaleString('zh-CN',{maximumFractionDigits:0});
 }
-function fn(v){return parseInt(v||0).toLocaleString('zh-CN')}
+function fn(v){return parseInt(v||0)||0}
+function safe(v){return isFinite(v)?v:0}
 
 // ── KPI ─────────────────────────────────────────────
 function renderKPI(k){
@@ -373,9 +375,9 @@ function renderKPI(k){
 // ── 漏斗图 5层 ─────────────────────────────────────
 function renderFunnel(k){
   var c = echarts.init(document.getElementById('c-funnel'));
-  var maxV = k.total_leads || 1;
-  c.setOption({
-    tooltip:{trigger:'item',formatter:function(p){return p.name+'<br>客资: '+fn(p.value)+' ('+(p.value/maxV*100).toFixed(1)+'%)'}},
+  var maxV = safe(k.total_leads) || 1;
+  var opt = {
+    tooltip:{trigger:'item',formatter:function(p){return p.name+'<br>客资: '+fn(p.value)+' ('+safe(p.value/maxV*100).toFixed(1)+'%)'}},
     color:['#1677ff','#52c41a','#fa8c16','#722ed1','#f5222d'],
     series:[{type:'funnel',left:'8%',top:16,bottom:16,width:'84%',
       min:0,max:maxV,minSize:'12%',maxSize:'100%',gap:6,
@@ -383,21 +385,23 @@ function renderFunnel(k){
       label:{show:true,position:'inside',formatter:function(p){return p.name+'<br>'+fn(p.value)},fontSize:13,color:'#fff',fontWeight:'bold'},
       itemStyle:{borderRadius:8,borderWidth:0,shadowBlur:8,shadowColor:'rgba(0,0,0,.15)'},
       data:[
-        {name:'总客资',  value:k.total_leads},
-        {name:'有效客资',value:k.valid_leads},
-        {name:'已分配',  value:k.assigned},
-        {name:'跟进中',  value:k.followed},
-        {name:'成交数',  value:k.total_orders}
+        {name:'总客资',  value:safe(k.total_leads)},
+        {name:'有效客资',value:safe(k.valid_leads)},
+        {name:'已分配',  value:safe(k.assigned)},
+        {name:'跟进中',  value:safe(k.followed)},
+        {name:'成交数',  value:safe(k.total_orders)}
       ]}]
-  });
+  };
+  try{console.log('[DEBUG] renderFunnel opt:',JSON.stringify(opt).slice(0,200));c.setOption(opt);}catch(e){console.error('[ERR renderFunnel]',e);}
   _charts.push(c);
 }
 
 function renderTrend(daily){
-  console.log('[DEBUG] renderTrend daily length:', (daily||[]).length, daily&&daily.length>0 ? daily[0] : 'empty');
+  console.log('[DEBUG] renderTrend daily length:', (daily||[]).length);
+  if(!daily||!daily.length)return;
   var c=echarts.init(document.getElementById('c-trend'));
   var dates=daily.map(function(d){return d['日期'].slice(5)});
-  c.setOption({
+  var opt={
     legend:{data:['有效率','分配率','跟进率','成交率'],top:0,right:0},
     tooltip:{trigger:'axis',formatter:function(ps){return ps.map(function(p){return p.marker+p.seriesName+': '+p.value+'%'}).join('<br>')}},
     grid:{top:36,left:50,right:20,bottom:36},
@@ -405,37 +409,39 @@ function renderTrend(daily){
     yAxis:{type:'value',axisLabel:{formatter:'{value}%',fontSize:11}},
     series:[
       {name:'有效率',type:'line',smooth:.4,yAxisIndex:0,
-       data:daily.map(function(d){return+(d['有效率']||0).toFixed(1)}),
+       data:daily.map(function(d){var v=parseFloat(d['有效率']);return isFinite(v)?+v.toFixed(1):0}),
        lineStyle:{width:2},itemStyle:{color:'#1677ff'},showSymbol:false},
       {name:'分配率',type:'line',smooth:.4,yAxisIndex:0,
-       data:daily.map(function(d){return+(d['分配率']||0).toFixed(1)}),
+       data:daily.map(function(d){var v=parseFloat(d['分配率']);return isFinite(v)?+v.toFixed(1):0}),
        lineStyle:{width:2},itemStyle:{color:'#52c41a'},showSymbol:false},
       {name:'跟进率',type:'line',smooth:.4,yAxisIndex:0,
-       data:daily.map(function(d){return+(d['跟进率']||0).toFixed(1)}),
+       data:daily.map(function(d){var v=parseFloat(d['跟进率']);return isFinite(v)?+v.toFixed(1):0}),
        lineStyle:{width:2},itemStyle:{color:'#fa8c16'},showSymbol:false},
       {name:'成交率',type:'line',smooth:.4,yAxisIndex:0,
-       data:daily.map(function(d){return+(d['成交率']||0).toFixed(1)}),
+       data:daily.map(function(d){var v=parseFloat(d['成交率']);return isFinite(v)?+v.toFixed(1):0}),
        lineStyle:{width:2},itemStyle:{color:'#722ed1'},showSymbol:false}
     ]
-  });
+  };
+  try{console.log('[DEBUG] renderTrend sample:',daily[0]);c.setOption(opt);}catch(e){console.error('[ERR renderTrend]',e);}
   _charts.push(c);
 }
 
 function renderBrand(data){
-  console.log('[DEBUG] renderBrand data:', (data||[]).length, data&&data.length>0 ? data[0] : 'empty');
+  console.log('[DEBUG] renderBrand data length:', (data||[]).length);
   if(!data||!data.length)return;
   var c=echarts.init(document.getElementById('c-brand'));
-  var s=[].concat(data).sort(function(a,b){return b['客资数']-a['客资数']});
-  c.setOption({
+  var s=[].concat(data).sort(function(a,b){return safe(b['客资数'])-safe(a['客资数'])});
+  var opt={
     tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:function(p){return p[0].name+': '+fn(p[0].value)+'人'}},
     grid:{left:80,right:20,top:8,bottom:8},
     xAxis:{type:'value',axisLabel:{fontSize:11}},
     yAxis:{type:'category',data:s.map(function(b){return b['品牌']}),axisLabel:{fontSize:12}},
     series:[{type:'bar',
-      data:s.map(function(b){return b['客资数']}),
+      data:s.map(function(b){return safe(b['客资数'])}),
       itemStyle:{color:new echarts.graphic.LinearGradient(0,0,1,0,[[0,'#1677ff'],[1,'#69c0ff']]),borderRadius:[0,4,4,0]}
     }]
-  });
+  };
+  try{c.setOption(opt);}catch(e){console.error('[ERR renderBrand]',e.message);}
   _charts.push(c);
 }
 
@@ -443,14 +449,15 @@ function renderCat(data){
   if(!data||!data.length)return;
   var c=echarts.init(document.getElementById('c-cat'));
   var COLS=['#1677ff','#52c41a','#fa8c16','#722ed1','#f5222d','#13c2c2','#eb2f96','#a0d911'];
-  c.setOption({
+  var opt={
     tooltip:{trigger:'item',formatter:function(p){return p.name+': '+fm(p.value)}},
     legend:{orient:'vertical',right:8,top:'center',textStyle:{fontSize:11}},
     series:[{type:'pie',radius:['35%','65%'],center:['38%','50%'],
       label:{formatter:'{b}',fontSize:11},
-      data:data.slice(0,8).map(function(c,i){return{name:c['品类'],value:c['订单金额'],itemStyle:{color:COLS[i]}}})
+      data:data.slice(0,8).map(function(c,i){return{name:c['品类'],value:safe(c['订单金额']),itemStyle:{color:COLS[i]||'#999'}}})
     }]
-  });
+  };
+  try{c.setOption(opt);}catch(e){console.error('[ERR renderCat]',e.message);}
   _charts.push(c);
 }
 
@@ -458,32 +465,34 @@ function renderRegion(data){
   if(!data||!data.length)return;
   var c=echarts.init(document.getElementById('c-region'));
   var COLS=['#f5222d','#fa8c16','#52c41a','#1677ff','#722ed1'];
-  c.setOption({
+  var opt={
     tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:function(p){return p[0].name+': '+fm(p[0].value)}},
     grid:{left:50,right:20,top:8,bottom:30},
     xAxis:{type:'category',data:data.map(function(r){return r['片区']}),axisLabel:{rotate:20,fontSize:10}},
     yAxis:{type:'value',axisLabel:{formatter:function(v){return fm(v)},fontSize:10}},
     series:[{type:'bar',width:'50%',
-      data:data.map(function(r,i){return{value:r['订单金额'],itemStyle:{color:COLS[i%5],borderRadius:[4,4,0,0]}}})
+      data:data.map(function(r,i){return{value:safe(r['订单金额']),itemStyle:{color:COLS[i%5],borderRadius:[4,4,0,0]}}})
     }]
-  });
+  };
+  try{c.setOption(opt);}catch(e){console.error('[ERR renderRegion]',e.message);}
   _charts.push(c);
 }
 
 function renderCenter(data){
   if(!data||!data.length)return;
   var c=echarts.init(document.getElementById('c-center'));
-  var s=[].concat(data).sort(function(a,b){return b['订单金额']-a['订单金额']}).slice(0,10);
-  c.setOption({
+  var s=[].concat(data).sort(function(a,b){return safe(b['订单金额'])-safe(a['订单金额'])}).slice(0,10);
+  var opt={
     tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:function(p){return p[0].name+': '+fm(p[0].value)}},
     grid:{left:90,right:40,top:8,bottom:8},
     xAxis:{type:'value',axisLabel:{formatter:function(v){return fm(v)},fontSize:10}},
     yAxis:{type:'category',data:s.map(function(c){return c['运中']}),axisLabel:{fontSize:11}},
     series:[{type:'bar',
-      data:s.map(function(c){return c['订单金额']}),
+      data:s.map(function(c){return safe(c['订单金额'])}),
       itemStyle:{color:new echarts.graphic.LinearGradient(0,0,1,0,[[0,'#52c41a'],[1,'#b7eb8f']]),borderRadius:[0,4,4,0]}
     }]
-  });
+  };
+  try{c.setOption(opt);}catch(e){console.error('[ERR renderCenter]',e.message);}
   _charts.push(c);
 }
 
@@ -501,11 +510,13 @@ function renderHeatmap(data){
   if(!_heatChart) _heatChart = echarts.init(el);
   if(!_heatPushed){ _charts.push(_heatChart); _heatPushed=true; }
   echarts.registerMap('china', RAW_CHINA_GEO);
-  var provData = _heatMode === 'leads'
+  var provData = (_heatMode === 'leads'
     ? (data.province_leads || [])
-    : (data.province_orders || []);
-  var maxV = Math.max.apply(null, provData.map(function(p){return parseFloat(p.value||0)}).concat([1]));
-  _heatChart.setOption({
+    : (data.province_orders || [])).map(function(p){return{name:p.name,value:safe(parseFloat(p.value))};});
+  var vals = provData.map(function(p){return p.value;}).filter(isFinite);
+  var maxV = vals.length ? Math.max.apply(null, vals) : 1;
+  var opt={
+
     tooltip:{trigger:'item',formatter:function(p){
       if(!p.data) return '';
       var v = parseFloat(p.data.value||0);
@@ -516,7 +527,7 @@ function renderHeatmap(data){
                  shadowBlur:6,shadowColor:'rgba(30,60,120,.6)'},
       emphasis:{itemStyle:{areaColor:'#3a5a8a'}},
       label:{show:false}},
-    visualMap:{min:0,max:maxV,left:12,bottom:16,calculable:true,
+    visualMap:{min:0,max:maxV||1,left:12,bottom:16,calculable:true,
       inRange:{color:_heatMode==='leads'
         ?['#0d1b2a','#1b3a5c','#2e6fb0','#69c0ff','#e6f7ff']
         :['#0d1b2a','#3d1a1a','#b03a2e','#ff7875','#ffe6e6']},
@@ -524,7 +535,8 @@ function renderHeatmap(data){
       formatter:function(v){return fm(v)}},
     series:[{type:'map',map:'china',geoIndex:0,data:provData,
       emphasis:{label:{show:false}}}]
-  });
+  };
+  try{_heatChart.setOption(opt);}catch(e){console.error('[ERR renderHeatmap]',e.message);}
 }
 
 // ── 日客资订单面积图 ───────────────────────────────
@@ -533,8 +545,8 @@ function renderDailyLeadOrder(data){
   if(!el||!data||!data.length) return;
   var c = echarts.init(el);
   var dates = data.map(function(d){return d['日期'].slice(5)});
-  var leads  = data.map(function(d){return d['日客资']||0});
-  var orders = data.map(function(d){return d['日订单']||0});
+  var leads  = data.map(function(d){return safe(d['日客资'])});
+  var orders = data.map(function(d){return safe(d['日订单'])});
   c.setOption({
     tooltip:{trigger:'axis',formatter:function(ps){
       return '<b>'+ps[0].name+'</b><br>'+ps.map(function(p){
@@ -572,7 +584,7 @@ function renderProductCat(data){
   var COLS = ['#1677ff','#52c41a','#fa8c16','#722ed1','#f5222d',
               '#13c2c2','#eb2f96','#a0d911','#faad14','#2f54ed'];
   var names = data.map(function(d){return d['类目']});
-  var vals  = data.map(function(d){return d['金额']});
+  var vals  = data.map(function(d){return safe(d['金额'])});
   c.setOption({
     tooltip:{trigger:'axis',axisPointer:{type:'shadow'},
       formatter:function(p){return p[0].name+'<br>金额: '+fm(p[0].value)}},
