@@ -286,8 +286,7 @@ function renderFunnel(k){
     series:[{type:'funnel',left:'8%',top:16,bottom:16,width:'84%',
       min:0,max:maxV,minSize:'12%',maxSize:'100%',gap:6,
       sort:'descending',
-      label:{show:true,position:'inside',formatter:function(p){return p.name+'
-'+fn(p.value)},fontSize:13,color:'#fff',fontWeight:'bold'},
+      label:{show:true,position:'inside',formatter:function(p){return p.name+'\n'+fn(p.value)},fontSize:13,color:'#fff',fontWeight:'bold'},
       itemStyle:{borderRadius:8,borderWidth:0,shadowBlur:8,shadowColor:'rgba(0,0,0,.15)'},
       data:[
         {name:'总客资',  value:k.total_leads},
