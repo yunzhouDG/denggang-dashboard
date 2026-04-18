@@ -796,11 +796,31 @@
 
   </div>
 
-  <div class="chart-card" style="margin-bottom:20px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:20px">
 
-    <div class="chart-title">🏆 Top10 商品类目（订单金额）</div>
+    <div class="chart-card">
 
-    <div class="chart-box" id="top10ProductChart" style="height:400px"></div>
+      <div class="chart-title">📡 客资来源分布</div>
+
+      <div class="chart-box" id="sourceChart" style="height:400px"></div>
+
+    </div>
+
+    <div class="chart-card">
+
+      <div class="chart-title">🏆 Top10 商品类目（订单金额）</div>
+
+      <div class="chart-box" id="top10ProductChart" style="height:400px"></div>
+
+    </div>
+
+    <div class="chart-card">
+
+      <div class="chart-title">📊 品类成交率对比</div>
+
+      <div class="chart-box" id="categoryConvChart" style="height:400px"></div>
+
+    </div>
 
   </div>
 
@@ -830,7 +850,7 @@ let DATA, filteredKPI, filteredDetail, filteredOrders, filteredDaily;
 
 let filteredBrands, filteredCategories, filteredCenters, filteredAreas;
 
-let chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product;
+let chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product, chartSource, chartCategoryConv;
 
 let chartKzProvince, chartOrderProvince, chartCenterProvince;
 
@@ -1064,7 +1084,7 @@ function applyFilters() {
 
   renderKPI(); renderDailyTrend(); renderRateTrend(); renderFunnel();
 
-  renderBrandChart(); renderCategoryChart(); renderCenterChart(); renderMonthlyCatChart(); renderProvinceCharts(); renderTop10Products(); renderSummary();
+  renderBrandChart(); renderCategoryChart(); renderCenterChart(); renderMonthlyCatChart(); renderProvinceCharts(); renderTop10Products(); renderSourceChart(); renderCategoryConv(); renderSummary();
 
 }
 
@@ -1879,6 +1899,116 @@ function renderTop10Products() {
   });
 }
 
+// ===== Source Distribution Pie =====
+function renderSourceChart() {
+  var data = (DATA.sourceDist || []);
+  if (!data.length) return;
+  if (!chartSource) chartSource = initChart('sourceChart');
+  chartSource.setOption({
+    tooltip: Object.assign({
+      trigger: 'item',
+      formatter: function(p) {
+        return '<b style="color:#818cf8">' + p.name + '</b><br/>'
+          + '<span style="color:#94a3b8">数量：</span><b>' + p.value.toLocaleString() + '</b><br/>'
+          + '<span style="color:#94a3b8">占比：</span><b>' + p.percent + '%</b>';
+      }
+    }, tooltipStyle),
+    legend: {
+      orient: 'vertical', right: 10, top: 'center',
+      textStyle: { color: '#cbd5e1', fontSize: 12 },
+      itemWidth: 14, itemHeight: 14, itemGap: 12
+    },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      center: ['35%', '50%'],
+      avoidLabelOverlap: false,
+      label: { show: false },
+      emphasis: {
+        label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#f0f9ff' }
+      },
+      itemStyle: {
+        borderColor: 'rgba(15,23,42,0.8)',
+        borderWidth: 2,
+        borderRadius: 6
+      },
+      data: data.map(function(item, i) {
+        var colors = [
+          'rgba(99,102,241,0.85)', 'rgba(168,85,247,0.85)', 'rgba(236,72,153,0.85)',
+          'rgba(14,165,233,0.85)', 'rgba(20,184,166,0.85)', 'rgba(132,204,22,0.85)',
+          'rgba(251,146,60,0.85)', 'rgba(248,113,113,0.85)'
+        ];
+        return { name: item.name, value: item.value, itemStyle: { color: colors[i % colors.length] } };
+      })
+    }]
+  });
+}
+
+// ===== Category Conversion Rate =====
+function renderCategoryConv() {
+  var data = (DATA.categoryConv || []);
+  if (!data.length) return;
+  data.sort(function(a, b) { return a['成交率'] - b['成交率']; });
+  var names = data.map(function(x) { return x['品类']; });
+  var rates = data.map(function(x) { return x['成交率']; });
+
+  if (!chartCategoryConv) chartCategoryConv = initChart('categoryConvChart');
+  chartCategoryConv.setOption({
+    tooltip: Object.assign({
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: function(params) {
+        var p = params[0];
+        var idx = p.dataIndex;
+        var d = data[idx];
+        return '<b style="color:#818cf8">' + p.name + '</b><br/>'
+          + '<span style="color:#94a3b8">客资数：</span><b>' + d['客资数'].toLocaleString() + '</b><br/>'
+          + '<span style="color:#94a3b8">成交数：</span><b>' + d['订单数'].toLocaleString() + '</b><br/>'
+          + '<span style="color:#94a3b8">成交率：</span><b style="color:#fbbf24">' + p.value + '%</b>';
+      }
+    }, tooltipStyle),
+    grid: { left: 80, right: 40, top: 15, bottom: 30 },
+    xAxis: {
+      type: 'value',
+      axisLabel: { color: '#64748b', fontSize: 11, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)', type: 'dashed' } },
+      axisLine: { show: false }
+    },
+    yAxis: {
+      type: 'category',
+      data: names,
+      axisLabel: { color: '#cbd5e1', fontSize: 12, fontWeight: 'bold' },
+      axisLine: { show: false },
+      axisTick: { show: false }
+    },
+    series: [{
+      type: 'bar',
+      data: rates.map(function(v) {
+        var color = v > 30 ? 'rgba(20,184,166,0.8)' : v > 15 ? 'rgba(251,146,60,0.8)' : 'rgba(248,113,113,0.8)';
+        return {
+          value: v,
+          itemStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+              { offset: 0, color: color.replace('0.8', '0.2') },
+              { offset: 1, color: color }
+            ]),
+            borderRadius: [0, 6, 6, 0]
+          }
+        };
+      }),
+      barWidth: 22,
+      label: {
+        show: true,
+        position: 'right',
+        formatter: '{c}%',
+        color: '#e2e8f0',
+        fontSize: 11,
+        fontWeight: 'bold'
+      }
+    }]
+  });
+}
+
 // ===== Summary Table =====
 
 function renderSummary() {
@@ -1945,7 +2075,7 @@ function renderSummary() {
 
 window.addEventListener('resize', () => {
 
-  [chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product, chartKzProvince, chartOrderProvince, chartCenterProvince].forEach(c => c && c.resize());
+  [chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product, chartSource, chartCategoryConv, chartKzProvince, chartOrderProvince, chartCenterProvince].forEach(c => c && c.resize());
 
 });
 
