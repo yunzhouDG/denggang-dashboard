@@ -743,8 +743,10 @@ function renderProvinceCharts() {
             { offset: 0.4, color: 'rgba(14,165,233,0.7)' },
             { offset: 1, color: 'rgba(3,105,161,0.15)' }
           ]),
-          shadowBlur: 25,
-          shadowColor: 'rgba(14,165,233,0.6)'
+          borderColor: 'rgba(56,189,248,0.8)',
+          borderWidth: 2,
+          shadowBlur: 35,
+          shadowColor: 'rgba(14,165,233,0.8)'
         },
         label: {
           show: true,
@@ -754,21 +756,23 @@ function renderProvinceCharts() {
           },
           position: 'right',
           distance: 8,
-          color: '#cbd5e1',
-          fontSize: 10,
-          fontWeight: 'normal',
+          color: '#e2e8f0',
+          fontSize: 11,
+          fontWeight: 'bold',
           lineHeight: 16,
-          textShadowColor: 'rgba(0,0,0,0.8)',
-          textShadowBlur: 6,
+          textShadowColor: 'rgba(0,0,0,0.9)',
+          textShadowBlur: 8,
           rich: {}
         },
         emphasis: {
           label: {
             color: '#f0f9ff',
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: 'bold'
           },
           itemStyle: {
+            borderColor: 'rgba(251,191,36,0.9)',
+            borderWidth: 3,
             color: new echarts.graphic.RadialGradient(0.4, 0.3, 1, [
               { offset: 0, color: 'rgba(251,191,36,0.95)' },
               { offset: 0.4, color: 'rgba(245,158,11,0.7)' },
