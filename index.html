@@ -655,14 +655,27 @@ function renderProvinceCharts() {
       series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: odData, itemStyle: { borderColor: '#475569', borderWidth: 0.8 } }]
     });
 
-    // 运营中心气泡图（不需要 loadChinaMap）
+    // 运营中心气泡图
     if (!chartCenterProvince) chartCenterProvince = initChart('centerProvinceChart');
-    // 不需要地图模式，重新初始化为普通图表
     chartCenterProvince.clear();
     var centerData = DATA.centers || [];
     var centerMax = Math.max(...centerData.map(function(x){ return (x['订单金额_万']||0); }), 1);
     var centerMinSize = 15;
     var centerMaxSize = 60;
+
+    // 用 effectScatter 实现发光动画
+    var scatterData = centerData.map(function(c) {
+      return {
+        name: c['运营中心'] || c['name'],
+        value: [
+          Math.random() * 80 + 10,
+          Math.random() * 80 + 10
+        ],
+        '订单数': c['订单数'] || 0,
+        '订单金额_万': c['订单金额_万'] || 0
+      };
+    });
+
     chartCenterProvince.setOption({
       tooltip: {
         trigger: 'item',
@@ -670,33 +683,31 @@ function renderProvinceCharts() {
           return p.name + '<br/>订单数: ' + (p.data['订单数']||0) + '<br/>订单金额: ' + (p.data['订单金额_万']||0) + '万';
         }
       },
-      grid: { left: 60, right: 40, top: 30, bottom: 60 },
-      xAxis: { type: 'value', show: false },
-      yAxis: { type: 'value', show: false },
+      grid: { left: 20, right: 20, top: 30, bottom: 40 },
+      xAxis: { type: 'value', show: false, min: 0, max: 100 },
+      yAxis: { type: 'value', show: false, min: 0, max: 100 },
       series: [{
-        type: 'scatter',
-        symbolSize: function(data) {
-          return centerMinSize + (data['订单金额_万'] / centerMax) * (centerMaxSize - centerMinSize);
+        type: 'effectScatter',
+        coordinateSystem: 'cartesian2d',
+        symbolSize: function(data, params) {
+          var amount = params.data['订单金额_万'] || 0;
+          return centerMinSize + (amount / centerMax) * (centerMaxSize - centerMinSize);
         },
-        data: centerData.map(function(c) {
-          return {
-            name: c['运营中心'] || c['name'],
-            value: [
-              Math.random() * 80 + 10,
-              Math.random() * 80 + 10,
-              c['订单金额_万'] || 0
-            ],
-            '订单数': c['订单数'] || 0,
-            '订单金额_万': c['订单金额_万'] || 0
-          };
-        }),
+        data: scatterData,
+        showEffectOn: 'render',
+        rippleEffect: {
+          brushType: 'stroke',
+          scale: 4,
+          period: 4
+        },
         itemStyle: {
           color: new echarts.graphic.RadialGradient(0.4, 0.3, 1, [
-            { offset: 0, color: 'rgba(56,189,248,0.9)' },
-            { offset: 1, color: 'rgba(2,132,199,0.4)' }
+            { offset: 0, color: '#38bdf8' },
+            { offset: 0.7, color: '#0284c7' },
+            { offset: 1, color: 'rgba(2,132,199,0.3)' }
           ]),
-          shadowBlur: 10,
-          shadowColor: 'rgba(56,189,248,0.5)'
+          shadowBlur: 20,
+          shadowColor: 'rgba(56,189,248,0.7)'
         },
         label: {
           show: true,
@@ -704,18 +715,21 @@ function renderProvinceCharts() {
           position: 'bottom',
           color: '#e2e8f0',
           fontSize: 11,
-          fontWeight: 'bold'
+          fontWeight: 'bold',
+          textShadowColor: '#000',
+          textShadowBlur: 4
         },
         emphasis: {
+          label: { color: '#fbbf24', fontSize: 13 },
           itemStyle: {
-            shadowBlur: 20,
-            shadowColor: 'rgba(56,189,248,0.8)',
             color: new echarts.graphic.RadialGradient(0.4, 0.3, 1, [
-              { offset: 0, color: 'rgba(251,191,36,0.95)' },
-              { offset: 1, color: 'rgba(245,158,11,0.5)' }
+              { offset: 0, color: '#fbbf24' },
+              { offset: 0.7, color: '#f59e0b' },
+              { offset: 1, color: 'rgba(245,158,11,0.3)' }
             ])
           }
-        }
+        },
+        zlevel: 1
       }]
     });
   });
