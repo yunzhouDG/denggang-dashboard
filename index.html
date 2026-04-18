@@ -270,6 +270,21 @@
   </div>
 </div>
 
+<div class="charts-row" style="margin-top:16px">
+  <div class="chart-card">
+    <div class="chart-title">🗺️ 客资省份分布</div>
+    <div class="chart-box small" id="kzProvinceChart" style="height:420px"></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">🗺️ 订单省份金额（万元）</div>
+    <div class="chart-box small" id="orderProvinceChart" style="height:420px"></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">🗺️ 运营中心省份分布</div>
+    <div class="chart-box small" id="centerProvinceChart" style="height:420px"></div>
+  </div>
+</div>
+
 <div class="summary-section">
   <div class="chart-card" style="margin-bottom:20px">
     <div class="chart-title">📋 汇总明细</div>
@@ -282,6 +297,7 @@
 let DATA, filteredKPI, filteredDetail, filteredOrders, filteredDaily;
 let filteredBrands, filteredCategories, filteredCenters, filteredAreas;
 let chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat;
+let chartKzProvince, chartOrderProvince, chartCenterProvince;
 
 fetch('dashboard_data.json?t=' + Date.now())
   .then(r => r.json())
@@ -397,7 +413,7 @@ function applyFilters() {
   filteredAreas = filteredCenters.map(r => ({ 片区: r['运营中心'], ...r }));
 
   renderKPI(); renderDailyTrend(); renderRateTrend(); renderFunnel();
-  renderBrandChart(); renderCategoryChart(); renderCenterChart(); renderMonthlyCatChart(); renderSummary();
+  renderBrandChart(); renderCategoryChart(); renderCenterChart(); renderMonthlyCatChart(); renderProvinceCharts(); renderSummary();
 }
 
 // Bind filter events
@@ -584,6 +600,46 @@ function renderMonthlyCatChart() {
     series: series
   });
 }
+// ===== Province Heat Maps =====
+function loadChinaMap(cb) {
+  if (echarts.getMap('china')) return cb();
+  fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
+    .then(r => r.json())
+    .then(geo => {
+      echarts.registerMap('china', geo);
+      cb();
+    })
+    .catch(() => cb());
+}
+
+function renderProvinceCharts() {
+  loadChinaMap(function() {
+    // 客资省份
+    if (!chartKzProvince) chartKzProvince = initChart('kzProvinceChart');
+    chartKzProvince.setOption({
+      tooltip: { trigger: 'item', formatter: function(p){ return p.name + '<br/>客资数: ' + (p.value || 0); } },
+      visualMap: { min: 0, max: Math.max(...(DATA.kzProvince||[]).map(x=>x.value),1), left: 20, bottom: 20, text: ['高','低'], textStyle: { color: '#94a3b8', fontSize: 11 }, inRange: { color: ['#e8f4f8','#b6d7ea','#6baed6','#2171b5','#08306b'] }, calculable: true },
+      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#94a3b8', fontSize: 9 }, emphasis: { label: { color: '#fff' }, itemStyle: { areaColor: '#f59e0b' } }, data: DATA.kzProvince || [], itemStyle: { borderColor: '#1e293b', areaColor: '#1a2740' } }]
+    });
+
+    // 订单省份金额
+    if (!chartOrderProvince) chartOrderProvince = initChart('orderProvinceChart');
+    chartOrderProvince.setOption({
+      tooltip: { trigger: 'item', formatter: function(p){ return p.name + '<br/>金额: ' + (p.value || 0) + '万'; } },
+      visualMap: { min: 0, max: Math.max(...(DATA.orderProvince||[]).map(x=>x.value),1), left: 20, bottom: 20, text: ['高','低'], textStyle: { color: '#94a3b8', fontSize: 11 }, inRange: { color: ['#fff5f0','#fcbba1','#fb6a4a','#de2d26','#67000d'] }, calculable: true },
+      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#94a3b8', fontSize: 9 }, emphasis: { label: { color: '#fff' }, itemStyle: { areaColor: '#f59e0b' } }, data: DATA.orderProvince || [], itemStyle: { borderColor: '#1e293b', areaColor: '#2a1a1a' } }]
+    });
+
+    // 运营中心省份
+    if (!chartCenterProvince) chartCenterProvince = initChart('centerProvinceChart');
+    chartCenterProvince.setOption({
+      tooltip: { trigger: 'item', formatter: function(p){ return p.name + '<br/>运营中心数: ' + (p.value || 0); } },
+      visualMap: { min: 0, max: Math.max(...(DATA.centerProvince||[]).map(x=>x.value),1), left: 20, bottom: 20, text: ['多','少'], textStyle: { color: '#94a3b8', fontSize: 11 }, inRange: { color: ['#f7fcf5','#c7e9c0','#74c476','#31a354','#00441b'] }, calculable: true },
+      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#94a3b8', fontSize: 9 }, emphasis: { label: { color: '#fff' }, itemStyle: { areaColor: '#f59e0b' } }, data: DATA.centerProvince || [], itemStyle: { borderColor: '#1e293b', areaColor: '#1a2a1a' } }]
+    });
+  });
+}
+
 // ===== Summary Table =====
 function renderSummary() {
   const container = document.getElementById('summaryContainer');
@@ -617,7 +673,7 @@ function renderSummary() {
 
 // ===== Resize handler =====
 window.addEventListener('resize', () => {
-  [chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat].forEach(c => c && c.resize());
+  [chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartKzProvince, chartOrderProvince, chartCenterProvince].forEach(c => c && c.resize());
 });
 </script>
 </body>
