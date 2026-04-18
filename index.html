@@ -288,17 +288,7 @@ fetch('dashboard_data.json')
   });
 
 // ===== Filter Logic =====
-filteredKPI = DATA.kpi;
-let filteredDetail = DATA.rawDetail;
-let filteredOrders = DATA.rawOrders;
-let filteredDaily = DATA.dailyTrend;
-let filteredBrands = DATA.brands;
-let filteredCategories = DATA.categories;
-let filteredCenters = DATA.centers;
-let filteredAreas = DATA.areas;
-
-// Init filter options
-(function initFilters() {
+function initFilters() {
   const opts = DATA.filterOptions;
   document.getElementById('filterDateStart').value = opts.dateMin;
   document.getElementById('filterDateEnd').value = opts.dateMax;
@@ -308,7 +298,7 @@ let filteredAreas = DATA.areas;
   opts.categories.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; cSel.appendChild(o); });
   const oSel = document.getElementById('filterCenter');
   opts.centers.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; oSel.appendChild(o); });
-})();
+}
 
 function resetFilters() {
   const opts = DATA.filterOptions;
