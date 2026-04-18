@@ -830,7 +830,7 @@ let DATA, filteredKPI, filteredDetail, filteredOrders, filteredDaily;
 
 let filteredBrands, filteredCategories, filteredCenters, filteredAreas;
 
-let chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat;
+let chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product;
 
 let chartKzProvince, chartOrderProvince, chartCenterProvince;
 
@@ -1945,7 +1945,7 @@ function renderSummary() {
 
 window.addEventListener('resize', () => {
 
-  [chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartKzProvince, chartOrderProvince, chartCenterProvince].forEach(c => c && c.resize());
+  [chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product, chartKzProvince, chartOrderProvince, chartCenterProvince].forEach(c => c && c.resize());
 
 });
 
