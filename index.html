@@ -252,6 +252,10 @@
     <div class="chart-title">🔻 转化漏斗</div>
     <div class="chart-box" id="funnelChart"></div>
   </div>
+  <div class="chart-card full">
+    <div class="chart-title">💰 月度品类金额（万元）</div>
+    <div class="chart-box" id="monthlyCatChart" style="height:320px"></div>
+  </div>
   <div class="chart-card">
     <div class="chart-title">🏷️ 品牌分析</div>
     <div class="chart-box small" id="brandChart"></div>
@@ -277,9 +281,9 @@
 // ===== Load Data =====
 let DATA, filteredKPI, filteredDetail, filteredOrders, filteredDaily;
 let filteredBrands, filteredCategories, filteredCenters, filteredAreas;
-let chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter;
+let chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat;
 
-fetch('dashboard_data.json?t='+Date.now())
+fetch('dashboard_data.json?t=' + Date.now())
   .then(r => r.json())
   .then(data => {
     DATA = data;
@@ -393,7 +397,7 @@ function applyFilters() {
   filteredAreas = filteredCenters.map(r => ({ 片区: r['运营中心'], ...r }));
 
   renderKPI(); renderDailyTrend(); renderRateTrend(); renderFunnel();
-  renderBrandChart(); renderCategoryChart(); renderCenterChart(); renderSummary();
+  renderBrandChart(); renderCategoryChart(); renderCenterChart(); renderMonthlyCatChart(); renderSummary();
 }
 
 // Bind filter events
@@ -556,6 +560,30 @@ function renderCenterChart() {
     ]
   });
 }
+// ===== Monthly Category Amount Chart =====
+function renderMonthlyCatChart() {
+  if (!chartMonthlyCat) chartMonthlyCat = initChart('monthlyCatChart');
+  const records = DATA.monthlyCatAmount || [];
+  const months = records.map(r => r['月份']);
+  const cats = Object.keys(records[0] || {}).filter(k => k !== '月份');
+  const colors = ['#22d3ee','#f472b6','#a78bfa','#fbbf24','#34d399','#fb7185'];
+  const series = cats.map((cat, i) => ({
+    name: cat,
+    type: 'bar',
+    barMaxWidth: 60,
+    data: records.map(r => r[cat] || 0),
+    itemStyle: { color: colors[i % colors.length], borderRadius: [4,4,0,0] },
+    label: { show: true, position: 'top', color: '#cbd5e1', fontSize: 11, formatter: function(p){ return p.value > 0 ? p.value : ''; } }
+  }));
+  chartMonthlyCat.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 12 } },
+    grid: { left: 60, right: 30, top: 40, bottom: 40 },
+    xAxis: { type: 'category', data: months, axisLabel: { color: '#e2e8f0', fontSize: 12 } },
+    yAxis: { type: 'value', name: '万元', nameTextStyle: { color: '#94a3b8' }, axisLabel: { color: '#94a3b8', formatter: '{value}' }, splitLine: { lineStyle: { color: '#1e293b' } } },
+    series: series
+  });
+}
 // ===== Summary Table =====
 function renderSummary() {
   const container = document.getElementById('summaryContainer');
@@ -589,7 +617,7 @@ function renderSummary() {
 
 // ===== Resize handler =====
 window.addEventListener('resize', () => {
-  [chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter].forEach(c => c && c.resize());
+  [chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat].forEach(c => c && c.resize());
 });
 </script>
 </body>
