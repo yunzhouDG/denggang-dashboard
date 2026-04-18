@@ -427,7 +427,6 @@ function renderKPI() {
       </div>`;
   });
 }
-renderKPI();
 
 // ===== ECharts common =====
 const colors = ['#60a5fa','#34d399','#fbbf24','#a78bfa','#f472b6','#22d3ee','#fb923c','#4ade80'];
@@ -449,9 +448,8 @@ function renderFunnel() {
     series: [{ type: 'funnel', left: '10%', right: '10%', top: 10, bottom: 10, width: '80%', sort: 'descending', gap: 4, label: { show: true, position: 'inside', color: '#fff', fontSize: 13, fontWeight: 600 }, labelLine: { show: false }, itemStyle: { borderColor: 'var(--bg)', borderWidth: 2 }, emphasis: { label: { fontSize: 15 } }, data: funnelData }]
   });
 }
-renderFunnel();
 
-// ===== Daily Trend =====
+// ===== Rate Trend =====
 function renderDailyTrend() {
   if (!chartDailyTrend) chartDailyTrend = initChart('dailyTrendChart');
   const d = filteredDaily;
@@ -482,8 +480,6 @@ function renderDailyTrend() {
     ]
   });
 }
-renderDailyTrend();
-
 // ===== Rate Trend =====
 function renderRateTrend() {
   if (!chartRateTrend) chartRateTrend = initChart('trendChart');
@@ -504,8 +500,6 @@ function renderRateTrend() {
     ]
   });
 }
-renderRateTrend();
-
 // ===== Brand Chart =====
 function renderBrandChart() {
   if (!chartBrand) chartBrand = initChart('brandChart');
@@ -526,8 +520,6 @@ function renderBrandChart() {
     ]
   });
 }
-renderBrandChart();
-
 // ===== Category Chart =====
 function renderCategoryChart() {
   if (!chartCategory) chartCategory = initChart('categoryChart');
@@ -548,8 +540,6 @@ function renderCategoryChart() {
     ]
   });
 }
-renderCategoryChart();
-
 // ===== Center Chart (TOP15) =====
 function renderCenterChart() {
   if (!chartCenter) chartCenter = initChart('centerChart');
@@ -566,8 +556,6 @@ function renderCenterChart() {
     ]
   });
 }
-renderCenterChart();
-
 // ===== Summary Table =====
 function renderSummary() {
   const container = document.getElementById('summaryContainer');
@@ -598,7 +586,6 @@ function renderSummary() {
     buildSection('运营中心', filteredCenters, 'tag-center', '运营中心') +
     buildSection('片区', filteredAreas, 'tag-area', '片区');
 }
-renderSummary();
 
 // ===== Resize handler =====
 window.addEventListener('resize', () => {
