@@ -619,7 +619,7 @@ function renderProvinceCharts() {
     chartKzProvince.setOption({
       tooltip: { trigger: 'item', formatter: function(p){ return p.name + '<br/>客资数: ' + (p.value || 0); } },
       visualMap: { min: 0, max: Math.max(...(DATA.kzProvince||[]).map(x=>x.value),1), left: 20, bottom: 20, text: ['高','低'], textStyle: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, inRange: { color: ['#dbeafe','#93c5fd','#3b82f6','#1d4ed8','#1e3a8a'] }, calculable: true },
-      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#e2e8f0', fontSize: 10 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: DATA.kzProvince || [], itemStyle: { borderColor: '#334155', borderWidth: 1, areaColor: '#1e293b' } }]
+      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#e2e8f0', fontSize: 10 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: DATA.kzProvince || [], itemStyle: { borderColor: '#334155', borderWidth: 1 } }]
     });
 
     // 订单省份金额
@@ -627,7 +627,7 @@ function renderProvinceCharts() {
     chartOrderProvince.setOption({
       tooltip: { trigger: 'item', formatter: function(p){ return p.name + '<br/>金额: ' + (p.value || 0) + '万'; } },
       visualMap: { min: 0, max: Math.max(...(DATA.orderProvince||[]).map(x=>x.value),1), left: 20, bottom: 20, text: ['高','低'], textStyle: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, inRange: { color: ['#fef2f2','#fca5a5','#ef4444','#dc2626','#7f1d1d'] }, calculable: true },
-      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#e2e8f0', fontSize: 10 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: DATA.orderProvince || [], itemStyle: { borderColor: '#334155', borderWidth: 1, areaColor: '#1e293b' } }]
+      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#e2e8f0', fontSize: 10 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: DATA.orderProvince || [], itemStyle: { borderColor: '#334155', borderWidth: 1 } }]
     });
 
     // 运营中心省份
@@ -635,7 +635,7 @@ function renderProvinceCharts() {
     chartCenterProvince.setOption({
       tooltip: { trigger: 'item', formatter: function(p){ return p.name + '<br/>运营中心数: ' + (p.value || 0); } },
       visualMap: { min: 0, max: Math.max(...(DATA.centerProvince||[]).map(x=>x.value),1), left: 20, bottom: 20, text: ['多','少'], textStyle: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, inRange: { color: ['#dcfce7','#86efac','#22c55e','#15803d','#14532d'] }, calculable: true },
-      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#e2e8f0', fontSize: 10 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: DATA.centerProvince || [], itemStyle: { borderColor: '#334155', borderWidth: 1, areaColor: '#1e293b' } }]
+      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#e2e8f0', fontSize: 10 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: DATA.centerProvince || [], itemStyle: { borderColor: '#334155', borderWidth: 1 } }]
     });
   });
 }
