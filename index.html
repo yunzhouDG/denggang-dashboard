@@ -601,6 +601,18 @@ function renderMonthlyCatChart() {
   });
 }
 // ===== Province Heat Maps =====
+const PROVINCE_NAME_MAP = {
+  '北京':'北京市','天津':'天津市','上海':'上海市','重庆':'重庆市',
+  '河北':'河北省','山西':'山西省','辽宁':'辽宁省','吉林':'吉林省','黑龙江':'黑龙江省',
+  '江苏':'江苏省','浙江':'浙江省','安徽':'安徽省','福建':'福建省','江西':'江西省',
+  '山东':'山东省','河南':'河南省','湖北':'湖北省','湖南':'湖南省','广东':'广东省',
+  '海南':'海南省','四川':'四川省','贵州':'贵州省','云南':'云南省','陕西':'陕西省',
+  '甘肃':'甘肃省','青海':'青海省','台湾':'台湾省',
+  '内蒙古':'内蒙古自治区','广西':'广西壮族自治区','西藏':'西藏自治区','宁夏':'宁夏回族自治区',
+  '新疆':'新疆维吾尔自治区','香港':'香港特别行政区','澳门':'澳门特别行政区',
+  '南海诸岛':'南海诸岛'
+};
+
 function loadChinaMap(cb) {
   if (echarts.getMap('china')) return cb();
   fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
@@ -612,33 +624,44 @@ function loadChinaMap(cb) {
     .catch(() => cb());
 }
 
+function mapProvinceData(data) {
+  return (data || []).map(function(item) {
+    var fullName = PROVINCE_NAME_MAP[item.name] || item.name;
+    return { name: fullName, value: item.value };
+  });
+}
+
 function renderProvinceCharts() {
   loadChinaMap(function() {
+    var kzData = mapProvinceData(DATA.kzProvince);
+    var odData = mapProvinceData(DATA.orderProvince);
+    var ctData = mapProvinceData(DATA.centerProvince);
+
     // 客资省份
     if (!chartKzProvince) chartKzProvince = initChart('kzProvinceChart');
-    const kzMax = Math.max(...(DATA.kzProvince||[]).map(x=>x.value),1);
+    var kzMax = Math.max(...kzData.map(function(x){return x.value}),1);
     chartKzProvince.setOption({
       tooltip: { trigger: 'item', formatter: function(p){ return p.name + '<br/>客资数: ' + (p.value || 0); } },
       visualMap: { min: 0, max: kzMax, left: 20, bottom: 20, text: ['高','低'], textStyle: { color: '#cbd5e1', fontSize: 11 }, inRange: { color: ['#e0f2fe','#38bdf8','#0284c7','#075985','#0c4a6e'] }, calculable: true },
-      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: DATA.kzProvince || [], itemStyle: { borderColor: '#475569', borderWidth: 0.8 } }]
+      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: kzData, itemStyle: { borderColor: '#475569', borderWidth: 0.8 } }]
     });
 
     // 订单省份金额
     if (!chartOrderProvince) chartOrderProvince = initChart('orderProvinceChart');
-    const odMax = Math.max(...(DATA.orderProvince||[]).map(x=>x.value),1);
+    var odMax = Math.max(...odData.map(function(x){return x.value}),1);
     chartOrderProvince.setOption({
       tooltip: { trigger: 'item', formatter: function(p){ return p.name + '<br/>金额: ' + (p.value || 0) + '万'; } },
       visualMap: { min: 0, max: odMax, left: 20, bottom: 20, text: ['高','低'], textStyle: { color: '#cbd5e1', fontSize: 11 }, inRange: { color: ['#fee2e2','#f87171','#dc2626','#991b1b','#7f1d1d'] }, calculable: true },
-      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: DATA.orderProvince || [], itemStyle: { borderColor: '#475569', borderWidth: 0.8 } }]
+      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: odData, itemStyle: { borderColor: '#475569', borderWidth: 0.8 } }]
     });
 
     // 运营中心省份
     if (!chartCenterProvince) chartCenterProvince = initChart('centerProvinceChart');
-    const ctMax = Math.max(...(DATA.centerProvince||[]).map(x=>x.value),1);
+    var ctMax = Math.max(...ctData.map(function(x){return x.value}),1);
     chartCenterProvince.setOption({
       tooltip: { trigger: 'item', formatter: function(p){ return p.name + '<br/>运营中心数: ' + (p.value || 0); } },
       visualMap: { min: 0, max: ctMax, left: 20, bottom: 20, text: ['多','少'], textStyle: { color: '#cbd5e1', fontSize: 11 }, inRange: { color: ['#dcfce7','#4ade80','#16a34a','#166534','#14532d'] }, calculable: true },
-      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: DATA.centerProvince || [], itemStyle: { borderColor: '#475569', borderWidth: 0.8 } }]
+      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: ctData, itemStyle: { borderColor: '#475569', borderWidth: 0.8 } }]
     });
   });
 }
