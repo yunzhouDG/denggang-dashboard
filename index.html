@@ -7,76 +7,141 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <style>
   :root {
-    --bg: #0a0e1a;
-    --card-bg: #111827;
-    --card-border: #1e293b;
+    --bg: #050a18;
+    --bg2: #0a1128;
+    --card-bg: rgba(15, 23, 42, 0.7);
+    --card-border: rgba(51, 65, 85, 0.4);
+    --card-hover-border: rgba(99, 102, 241, 0.4);
     --text: #e2e8f0;
     --text-dim: #94a3b8;
-    --accent: #3b82f6;
+    --accent: #6366f1;
     --accent2: #06b6d4;
     --green: #10b981;
     --amber: #f59e0b;
     --red: #ef4444;
     --purple: #8b5cf6;
     --pink: #ec4899;
+    --glow-blue: rgba(99, 102, 241, 0.15);
+    --glow-cyan: rgba(6, 182, 212, 0.1);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-    background: var(--bg);
+    background: linear-gradient(180deg, #050a18 0%, #0a1128 50%, #0f172a 100%);
     color: var(--text);
     min-height: 100vh;
     overflow-x: hidden;
   }
+  body::before {
+    content: '';
+    position: fixed;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(ellipse at 20% 20%, rgba(99,102,241,0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(6,182,212,0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(139,92,246,0.03) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+    animation: bgShift 20s ease-in-out infinite alternate;
+  }
+  @keyframes bgShift {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(-3%, -3%); }
+  }
+  body > * { position: relative; z-index: 1; }
+
+  /* Header */
   .header {
     text-align: center;
-    padding: 24px 20px 12px;
-    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-    border-bottom: 1px solid var(--card-border);
+    padding: 28px 20px 18px;
+    background: linear-gradient(135deg, rgba(15,23,42,0.9) 0%, rgba(30,27,75,0.6) 50%, rgba(15,23,42,0.9) 100%);
+    border-bottom: 1px solid rgba(99,102,241,0.15);
+    backdrop-filter: blur(20px);
+    position: relative;
+    overflow: hidden;
+  }
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(99,102,241,0.5), rgba(6,182,212,0.3), transparent);
   }
   .header h1 {
-    font-size: 28px;
-    font-weight: 700;
-    background: linear-gradient(90deg, #60a5fa, #a78bfa, #f472b6);
+    font-size: 30px;
+    font-weight: 800;
+    background: linear-gradient(90deg, #818cf8, #a78bfa, #f472b6, #22d3ee);
+    background-size: 200% auto;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    letter-spacing: 2px;
+    letter-spacing: 3px;
+    animation: titleShimmer 4s linear infinite;
+  }
+  @keyframes titleShimmer {
+    0% { background-position: 0% center; }
+    100% { background-position: 200% center; }
   }
   .header .subtitle {
     color: var(--text-dim);
     font-size: 13px;
-    margin-top: 4px;
+    margin-top: 6px;
+    letter-spacing: 4px;
+    font-weight: 300;
   }
+
+  /* KPI Cards */
   .kpi-row {
     display: grid;
     grid-template-columns: repeat(9, 1fr);
-    gap: 12px;
-    padding: 20px 24px 8px;
+    gap: 14px;
+    padding: 24px 28px 12px;
   }
   .kpi-card {
     background: var(--card-bg);
     border: 1px solid var(--card-border);
-    border-radius: 12px;
-    padding: 16px 14px;
+    border-radius: 16px;
+    padding: 18px 12px 14px;
     text-align: center;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 16px 16px 0 0;
+    background: linear-gradient(90deg, var(--kpi-color, #6366f1), transparent);
+    opacity: 0.6;
+    transition: opacity 0.3s;
   }
   .kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(59,130,246,0.15);
+    transform: translateY(-4px);
+    border-color: var(--card-hover-border);
+    box-shadow: 0 12px 40px rgba(99,102,241,0.12), 0 0 0 1px rgba(99,102,241,0.08);
   }
+  .kpi-card:hover::before { opacity: 1; }
   .kpi-card .label {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-dim);
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 500;
   }
   .kpi-card .value {
     font-size: 26px;
-    font-weight: 700;
+    font-weight: 800;
     line-height: 1.2;
+    font-variant-numeric: tabular-nums;
   }
-  .kpi-card .value.blue { color: #60a5fa; }
+  .kpi-card .value.blue { color: #818cf8; }
   .kpi-card .value.cyan { color: #22d3ee; }
   .kpi-card .value.green { color: #34d399; }
   .kpi-card .value.amber { color: #fbbf24; }
@@ -84,21 +149,30 @@
   .kpi-card .value.pink { color: #f472b6; }
   .kpi-card .value.red { color: #f87171; }
   .kpi-card .unit {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 400;
-    margin-left: 2px;
+    margin-left: 1px;
+    opacity: 0.7;
   }
+
+  /* Charts Grid */
   .charts-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 14px;
-    padding: 14px 24px;
+    gap: 16px;
+    padding: 16px 28px;
   }
   .chart-card {
     background: var(--card-bg);
     border: 1px solid var(--card-border);
-    border-radius: 12px;
-    padding: 16px;
+    border-radius: 16px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .chart-card:hover {
+    border-color: var(--card-hover-border);
+    box-shadow: 0 8px 32px rgba(99,102,241,0.08);
   }
   .chart-card.full { grid-column: span 3; }
   .chart-card.span2 { grid-column: span 2; }
@@ -106,111 +180,151 @@
     font-size: 14px;
     font-weight: 600;
     color: var(--text);
-    margin-bottom: 12px;
-    padding-left: 10px;
+    margin-bottom: 14px;
+    padding-left: 12px;
     border-left: 3px solid var(--accent);
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
   .chart-box { width: 100%; height: 320px; }
   .chart-box.small { height: 280px; }
+
+  /* Charts Row for province maps */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    padding: 0 28px 16px;
+  }
+
+  /* Summary Section */
   .summary-section {
-    padding: 0 24px 20px;
+    padding: 0 28px 28px;
   }
   .summary-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     background: var(--card-bg);
-    border-radius: 12px;
+    border-radius: 16px;
     overflow: hidden;
     border: 1px solid var(--card-border);
+    backdrop-filter: blur(10px);
   }
+  .summary-table thead { background: rgba(30, 41, 59, 0.8); }
   .summary-table th {
-    background: #1e293b;
     color: var(--text-dim);
     font-size: 12px;
     font-weight: 600;
-    padding: 10px 14px;
+    padding: 12px 16px;
     text-align: left;
     white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid rgba(99,102,241,0.1);
   }
   .summary-table td {
-    padding: 9px 14px;
+    padding: 11px 16px;
     font-size: 13px;
-    border-top: 1px solid var(--card-border);
+    border-top: 1px solid rgba(51,65,85,0.3);
     color: var(--text);
+    transition: background 0.2s;
   }
-  .summary-table tr:hover td { background: rgba(59,130,246,0.05); }
+  .summary-table tbody tr:nth-child(even) td { background: rgba(15,23,42,0.3); }
+  .summary-table tbody tr:hover td { background: rgba(99,102,241,0.06); }
   .tag {
     display: inline-block;
-    padding: 2px 10px;
-    border-radius: 10px;
+    padding: 3px 12px;
+    border-radius: 20px;
     font-size: 11px;
     font-weight: 600;
+    letter-spacing: 0.3px;
   }
-  .tag-brand { background: rgba(59,130,246,0.15); color: #60a5fa; }
-  .tag-cat { background: rgba(6,182,212,0.15); color: #22d3ee; }
-  .tag-center { background: rgba(139,92,246,0.15); color: #a78bfa; }
-  .tag-area { background: rgba(236,72,153,0.15); color: #f472b6; }
+  .tag-brand { background: rgba(99,102,241,0.12); color: #818cf8; border: 1px solid rgba(99,102,241,0.2); }
+  .tag-cat { background: rgba(6,182,212,0.12); color: #22d3ee; border: 1px solid rgba(6,182,212,0.2); }
+  .tag-center { background: rgba(139,92,246,0.12); color: #a78bfa; border: 1px solid rgba(139,92,246,0.2); }
+  .tag-area { background: rgba(236,72,153,0.12); color: #f472b6; border: 1px solid rgba(236,72,153,0.2); }
   .deal-rate-high { color: var(--red) !important; font-weight: 700; }
 
   /* Filter bar */
   .filter-bar {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 14px 24px;
-    background: var(--card-bg);
-    border-bottom: 1px solid var(--card-border);
+    gap: 14px;
+    padding: 16px 28px;
+    background: rgba(15, 23, 42, 0.6);
+    border-bottom: 1px solid rgba(99,102,241,0.1);
+    backdrop-filter: blur(10px);
     flex-wrap: wrap;
   }
   .filter-bar label {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--text-dim);
     font-weight: 600;
+    letter-spacing: 0.5px;
   }
   .filter-bar select,
   .filter-bar input[type="date"] {
-    background: #0f172a;
+    background: rgba(15, 23, 42, 0.8);
     color: var(--text);
     border: 1px solid var(--card-border);
-    border-radius: 8px;
-    padding: 6px 10px;
+    border-radius: 10px;
+    padding: 7px 14px;
     font-size: 13px;
     outline: none;
     font-family: inherit;
+    transition: all 0.2s;
   }
   .filter-bar select:focus,
   .filter-bar input[type="date"]:focus {
     border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
   }
   .filter-bar select { min-width: 140px; }
   .filter-bar .date-group {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
   }
   .filter-bar .btn-reset {
-    background: rgba(239,68,68,0.15);
+    background: rgba(239,68,68,0.1);
     color: #f87171;
-    border: 1px solid rgba(239,68,68,0.3);
-    border-radius: 8px;
-    padding: 6px 14px;
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 10px;
+    padding: 7px 18px;
     font-size: 13px;
     cursor: pointer;
     font-family: inherit;
     font-weight: 600;
+    transition: all 0.2s;
   }
   .filter-bar .btn-reset:hover {
-    background: rgba(239,68,68,0.25);
+    background: rgba(239,68,68,0.2);
+    box-shadow: 0 0 0 3px rgba(239,68,68,0.1);
   }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.5); }
+
+  /* Selection */
+  ::selection { background: rgba(99,102,241,0.3); color: #fff; }
 
   @media (max-width: 1200px) {
     .kpi-row { grid-template-columns: repeat(3, 1fr); }
     .charts-grid { grid-template-columns: 1fr; }
+    .charts-row { grid-template-columns: 1fr; }
     .chart-card.full, .chart-card.span2 { grid-column: span 1; }
   }
   @media (max-width: 768px) {
     .kpi-row { grid-template-columns: repeat(2, 1fr); }
     .header h1 { font-size: 22px; }
+    .kpi-row, .charts-grid, .charts-row, .summary-section { padding-left: 16px; padding-right: 16px; }
+    .filter-bar { padding-left: 16px; padding-right: 16px; }
   }
 </style>
 </head>
@@ -423,15 +537,15 @@ function applyFilters() {
 
 // ===== KPI Cards =====
 const kpiConfig = [
-  { key: 'totalKz', label: '总客资', cls: 'blue', format: v => v.toLocaleString() },
-  { key: 'validKz', label: '有效客资', cls: 'cyan', format: v => v.toLocaleString() },
-  { key: 'assigned', label: '分配数', cls: 'green', format: v => v.toLocaleString() },
-  { key: 'followed', label: '跟进数', cls: 'green', format: v => v.toLocaleString() },
-  { key: 'orders', label: '成交数', cls: 'purple', format: v => v.toLocaleString() },
-  { key: 'amountWan', label: '订单金额', cls: 'pink', format: v => v + '<span class="unit">万</span>' },
-  { key: 'assignRate', label: '分配率', cls: 'amber', format: v => v + '<span class="unit">%</span>' },
-  { key: 'followRate', label: '跟进率', cls: 'amber', format: v => v + '<span class="unit">%</span>' },
-  { key: 'dealRate', label: '成交率', cls: v => v > 80 ? 'red' : 'amber', format: v => v + '<span class="unit">%</span>' },
+  { key: 'totalKz', label: '总客资', cls: 'blue', color: '#818cf8', format: v => v.toLocaleString() },
+  { key: 'validKz', label: '有效客资', cls: 'cyan', color: '#22d3ee', format: v => v.toLocaleString() },
+  { key: 'assigned', label: '分配数', cls: 'green', color: '#34d399', format: v => v.toLocaleString() },
+  { key: 'followed', label: '跟进数', cls: 'green', color: '#34d399', format: v => v.toLocaleString() },
+  { key: 'orders', label: '成交数', cls: 'purple', color: '#a78bfa', format: v => v.toLocaleString() },
+  { key: 'amountWan', label: '订单金额', cls: 'pink', color: '#f472b6', format: v => v + '<span class="unit">万</span>' },
+  { key: 'assignRate', label: '分配率', cls: 'amber', color: '#fbbf24', format: v => v + '<span class="unit">%</span>' },
+  { key: 'followRate', label: '跟进率', cls: 'amber', color: '#fbbf24', format: v => v + '<span class="unit">%</span>' },
+  { key: 'dealRate', label: '成交率', cls: v => v > 80 ? 'red' : 'amber', color: v => v > 80 ? '#f87171' : '#fbbf24', format: v => v + '<span class="unit">%</span>' },
 ];
 
 function renderKPI() {
@@ -440,8 +554,9 @@ function renderKPI() {
   kpiConfig.forEach(item => {
     const val = filteredKPI[item.key];
     const cls = typeof item.cls === 'function' ? item.cls(val) : item.cls;
+    const color = typeof item.color === 'function' ? item.color(val) : item.color;
     kpiRow.innerHTML += `
-      <div class="kpi-card">
+      <div class="kpi-card" style="--kpi-color:${color}">
         <div class="label">${item.label}</div>
         <div class="value ${cls}">${item.format(val)}</div>
       </div>`;
@@ -449,8 +564,16 @@ function renderKPI() {
 }
 
 // ===== ECharts common =====
-const colors = ['#60a5fa','#34d399','#fbbf24','#a78bfa','#f472b6','#22d3ee','#fb923c','#4ade80'];
-function initChart(id) { return echarts.init(document.getElementById(id)); }
+const colors = ['#818cf8','#34d399','#fbbf24','#a78bfa','#f472b6','#22d3ee','#fb923c','#4ade80'];
+function initChart(id) { return echarts.init(document.getElementById(id), null, { renderer: 'canvas' }); }
+const tooltipStyle = {
+  backgroundColor: 'rgba(15,23,42,0.92)',
+  borderColor: 'rgba(99,102,241,0.3)',
+  borderWidth: 1,
+  padding: [12, 16],
+  textStyle: { color: '#e2e8f0', fontSize: 13 },
+  extraCssText: 'backdrop-filter:blur(10px);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.4);'
+};
 
 // ===== Funnel =====
 function renderFunnel() {
@@ -464,8 +587,8 @@ function renderFunnel() {
   ];
   const funnelData = d.map((v, i) => ({ name: v.name, value: v.value, itemStyle: { color: colors[i] } }));
   chartFunnel.setOption({
-    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-    series: [{ type: 'funnel', left: '10%', right: '10%', top: 10, bottom: 10, width: '80%', sort: 'descending', gap: 4, label: { show: true, position: 'inside', color: '#fff', fontSize: 13, fontWeight: 600 }, labelLine: { show: false }, itemStyle: { borderColor: 'var(--bg)', borderWidth: 2 }, emphasis: { label: { fontSize: 15 } }, data: funnelData }]
+    tooltip: Object.assign({ trigger: 'item', formatter: '{b}: {c} ({d}%)' }, tooltipStyle),
+    series: [{ type: 'funnel', left: '10%', right: '10%', top: 10, bottom: 10, width: '80%', sort: 'descending', gap: 4, label: { show: true, position: 'inside', color: '#fff', fontSize: 13, fontWeight: 600 }, labelLine: { show: false }, itemStyle: { borderColor: 'rgba(5,10,24,0.8)', borderWidth: 2 }, emphasis: { label: { fontSize: 15 } }, data: funnelData }]
   });
 }
 
@@ -475,28 +598,28 @@ function renderDailyTrend() {
   const d = filteredDaily;
   const dates = d.map(x => x['日期_str'].slice(5));
   chartDailyTrend.setOption({
-    tooltip: {
+    tooltip: Object.assign({
       trigger: 'axis',
-      axisPointer: { type: 'cross' },
+      axisPointer: { type: 'cross', crossStyle: { color: 'rgba(99,102,241,0.3)' } },
       formatter: function(params) {
-        let s = '<div style="font-weight:600;margin-bottom:4px">' + d[params[0].dataIndex]['日期_str'] + '</div>';
+        let s = '<div style="font-weight:700;margin-bottom:6px;color:#818cf8;font-size:13px">' + d[params[0].dataIndex]['日期_str'] + '</div>';
         params.forEach(p => {
-          s += '<div style="display:flex;align-items:center;gap:6px">'
-            + p.marker + p.seriesName + ': <b>' + p.value.toLocaleString() + '</b></div>';
+          s += '<div style="display:flex;align-items:center;gap:8px;padding:2px 0">'
+            + p.marker + '<span style="color:#cbd5e1">' + p.seriesName + '：</span><b style="color:#f1f5f9">' + p.value.toLocaleString() + '</b></div>';
         });
         return s;
       }
-    },
-    legend: { data: ['客资数','订单数'], top: 0, textStyle: { color: '#94a3b8', fontSize: 12 } },
+    }, tooltipStyle),
+    legend: { data: ['客资数','订单数'], top: 0, textStyle: { color: '#94a3b8', fontSize: 12 }, itemWidth: 16, itemHeight: 3 },
     grid: { left: 60, right: 60, top: 40, bottom: 30 },
-    xAxis: { type: 'category', data: dates, axisLabel: { color: '#94a3b8', fontSize: 10 }, axisLine: { lineStyle: { color: '#334155' } }, axisTick: { show: false } },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#64748b', fontSize: 10 }, axisLine: { lineStyle: { color: 'rgba(51,65,85,0.5)' } }, axisTick: { show: false } },
     yAxis: [
-      { type: 'value', name: '客资数', position: 'left', nameTextStyle: { color: '#60a5fa', fontSize: 11 }, axisLabel: { color: '#60a5fa' }, splitLine: { lineStyle: { color: '#1e293b' } } },
+      { type: 'value', name: '客资数', position: 'left', nameTextStyle: { color: '#818cf8', fontSize: 11 }, axisLabel: { color: '#818cf8' }, splitLine: { lineStyle: { color: 'rgba(51,65,85,0.2)', type: 'dashed' } } },
       { type: 'value', name: '订单数', position: 'right', nameTextStyle: { color: '#f472b6', fontSize: 11 }, axisLabel: { color: '#f472b6' }, splitLine: { show: false } }
     ],
     series: [
-      { name: '客资数', type: 'line', smooth: true, symbol: 'none', data: d.map(x => x['客资数']), yAxisIndex: 0, lineStyle: { color: '#60a5fa', width: 2 }, itemStyle: { color: '#60a5fa' }, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(96,165,250,0.35)' }, { offset: 1, color: 'rgba(96,165,250,0.02)' }]) }, emphasis: { focus: 'series' } },
-      { name: '订单数', type: 'line', smooth: true, symbol: 'none', data: d.map(x => x['成交数']), yAxisIndex: 1, lineStyle: { color: '#f472b6', width: 2 }, itemStyle: { color: '#f472b6' }, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(244,114,182,0.4)' }, { offset: 1, color: 'rgba(244,114,182,0.03)' }]) }, emphasis: { focus: 'series' } }
+      { name: '客资数', type: 'line', smooth: true, symbol: 'none', data: d.map(x => x['客资数']), yAxisIndex: 0, lineStyle: { color: '#818cf8', width: 2.5 }, itemStyle: { color: '#818cf8' }, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(129,140,248,0.3)' }, { offset: 1, color: 'rgba(129,140,248,0.01)' }]) }, emphasis: { focus: 'series' } },
+      { name: '订单数', type: 'line', smooth: true, symbol: 'none', data: d.map(x => x['成交数']), yAxisIndex: 1, lineStyle: { color: '#f472b6', width: 2.5 }, itemStyle: { color: '#f472b6' }, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(244,114,182,0.35)' }, { offset: 1, color: 'rgba(244,114,182,0.01)' }]) }, emphasis: { focus: 'series' } }
     ]
   });
 }
@@ -506,14 +629,14 @@ function renderRateTrend() {
   const d = filteredDaily;
   const dates = d.map(x => x['日期_str'].slice(5));
   chartRateTrend.setOption({
-    tooltip: { trigger: 'axis', formatter: function(params) { let s = '<div style="font-weight:600;margin-bottom:4px">' + d[params[0].dataIndex]['日期_str'] + '</div>'; params.forEach(p => { s += '<div style="display:flex;align-items:center;gap:6px">' + p.marker + p.seriesName + ': <b>' + p.value + '%</b></div>'; }); return s; } },
-    legend: { data: ['有效客资率','分配率','跟进率','成交率'], top: 0, textStyle: { color: '#94a3b8', fontSize: 11 } },
+    tooltip: Object.assign({ trigger: 'axis', formatter: function(params) { let s = '<div style="font-weight:700;margin-bottom:6px;color:#818cf8;font-size:13px">' + d[params[0].dataIndex]['日期_str'] + '</div>'; params.forEach(p => { s += '<div style="display:flex;align-items:center;gap:8px;padding:2px 0">' + p.marker + '<span style="color:#cbd5e1">' + p.seriesName + '：</span><b style="color:#f1f5f9">' + p.value + '%</b></div>'; }); return s; } }, tooltipStyle),
+    legend: { data: ['有效客资率','分配率','跟进率','成交率'], top: 0, textStyle: { color: '#94a3b8', fontSize: 11 }, itemWidth: 16, itemHeight: 3 },
     grid: { left: 50, right: 30, top: 40, bottom: 50 },
-    dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', start: 0, end: 100, height: 20, bottom: 5, borderColor: '#334155', backgroundColor: '#111827', fillerColor: 'rgba(59,130,246,0.15)', handleStyle: { color: '#3b82f6' }, textStyle: { color: '#94a3b8' } }],
-    xAxis: { type: 'category', data: dates, axisLabel: { color: '#94a3b8', fontSize: 10 }, axisLine: { lineStyle: { color: '#334155' } }, axisTick: { show: false } },
-    yAxis: { type: 'value', min: 0, max: 110, axisLabel: { color: '#94a3b8', formatter: '{value}%' }, splitLine: { lineStyle: { color: '#1e293b' } } },
+    dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', start: 0, end: 100, height: 20, bottom: 5, borderColor: 'rgba(51,65,85,0.4)', backgroundColor: 'rgba(15,23,42,0.6)', fillerColor: 'rgba(99,102,241,0.12)', handleStyle: { color: '#6366f1' }, textStyle: { color: '#64748b' }, dataBackground: { lineStyle: { color: 'rgba(99,102,241,0.2)' }, areaStyle: { color: 'rgba(99,102,241,0.05)' } } }],
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#64748b', fontSize: 10 }, axisLine: { lineStyle: { color: 'rgba(51,65,85,0.5)' } }, axisTick: { show: false } },
+    yAxis: { type: 'value', min: 0, max: 110, axisLabel: { color: '#64748b', formatter: '{value}%' }, splitLine: { lineStyle: { color: 'rgba(51,65,85,0.2)', type: 'dashed' } } },
     series: [
-      { name: '有效客资率', type: 'line', smooth: true, symbol: 'none', data: d.map(x => Math.min(x['有效客资率'], 110)), lineStyle: { color: '#60a5fa', width: 2 }, itemStyle: { color: '#60a5fa' } },
+      { name: '有效客资率', type: 'line', smooth: true, symbol: 'none', data: d.map(x => Math.min(x['有效客资率'], 110)), lineStyle: { color: '#818cf8', width: 2 }, itemStyle: { color: '#818cf8' } },
       { name: '分配率', type: 'line', smooth: true, symbol: 'none', data: d.map(x => Math.min(x['分配率'], 110)), lineStyle: { color: '#22d3ee', width: 2 }, itemStyle: { color: '#22d3ee' } },
       { name: '跟进率', type: 'line', smooth: true, symbol: 'none', data: d.map(x => Math.min(x['跟进率'], 110)), lineStyle: { color: '#34d399', width: 2 }, itemStyle: { color: '#34d399' } },
       { name: '成交率', type: 'line', smooth: true, symbol: 'none', data: d.map(x => Math.min(x['成交率'], 110)), lineStyle: { color: '#a78bfa', width: 2.5 }, itemStyle: { color: '#a78bfa' } }
@@ -525,18 +648,18 @@ function renderBrandChart() {
   if (!chartBrand) chartBrand = initChart('brandChart');
   const d = filteredBrands;
   chartBrand.setOption({
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 11 } },
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, tooltipStyle),
+    legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 11 }, itemWidth: 16, itemHeight: 3 },
     grid: { left: 50, right: 50, top: 36, bottom: 50 },
-    xAxis: { type: 'category', data: d.map(x => x['意向品牌']), axisLabel: { color: '#e2e8f0', fontSize: 11, rotate: 35, interval: 0 }, axisTick: { alignWithLabel: true } },
+    xAxis: { type: 'category', data: d.map(x => x['意向品牌']), axisLabel: { color: '#94a3b8', fontSize: 11, rotate: 35, interval: 0 }, axisTick: { alignWithLabel: true }, axisLine: { lineStyle: { color: 'rgba(51,65,85,0.5)' } } },
     yAxis: [
-      { type: 'value', axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: '#1e293b' } } },
-      { type: 'value', axisLabel: { color: '#94a3b8', formatter: '{value}万' }, splitLine: { show: false } }
+      { type: 'value', axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: 'rgba(51,65,85,0.2)', type: 'dashed' } } },
+      { type: 'value', axisLabel: { color: '#64748b', formatter: '{value}万' }, splitLine: { show: false } }
     ],
     series: [
-      { name: '客资数', type: 'bar', data: d.map(x => x['客资数']), itemStyle: { color: '#60a5fa', borderRadius: [4,4,0,0] } },
-      { name: '订单数', type: 'bar', data: d.map(x => x['订单数']), itemStyle: { color: '#a78bfa', borderRadius: [4,4,0,0] } },
-      { name: '金额(万)', type: 'line', yAxisIndex: 1, data: d.map(x => x['订单金额_万']), itemStyle: { color: '#f472b6' }, lineStyle: { width: 2 }, symbol: 'circle', symbolSize: 6 }
+      { name: '客资数', type: 'bar', data: d.map(x => x['客资数']), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#818cf8' }, { offset: 1, color: 'rgba(129,140,248,0.3)' }]), borderRadius: [6, 6, 0, 0] } },
+      { name: '订单数', type: 'bar', data: d.map(x => x['订单数']), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#a78bfa' }, { offset: 1, color: 'rgba(167,139,250,0.3)' }]), borderRadius: [6, 6, 0, 0] } },
+      { name: '金额(万)', type: 'line', yAxisIndex: 1, data: d.map(x => x['订单金额_万']), itemStyle: { color: '#f472b6' }, lineStyle: { width: 2.5 }, symbol: 'circle', symbolSize: 6 }
     ]
   });
 }
@@ -545,18 +668,18 @@ function renderCategoryChart() {
   if (!chartCategory) chartCategory = initChart('categoryChart');
   const d = filteredCategories;
   chartCategory.setOption({
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 11 } },
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, tooltipStyle),
+    legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 11 }, itemWidth: 16, itemHeight: 3 },
     grid: { left: 50, right: 50, top: 36, bottom: 50 },
-    xAxis: { type: 'category', data: d.map(x => x['品类']), axisLabel: { color: '#e2e8f0', fontSize: 11, rotate: 35, interval: 0 }, axisTick: { alignWithLabel: true } },
+    xAxis: { type: 'category', data: d.map(x => x['品类']), axisLabel: { color: '#94a3b8', fontSize: 11, rotate: 35, interval: 0 }, axisTick: { alignWithLabel: true }, axisLine: { lineStyle: { color: 'rgba(51,65,85,0.5)' } } },
     yAxis: [
-      { type: 'value', axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: '#1e293b' } } },
-      { type: 'value', axisLabel: { color: '#94a3b8', formatter: '{value}万' }, splitLine: { show: false } }
+      { type: 'value', axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: 'rgba(51,65,85,0.2)', type: 'dashed' } } },
+      { type: 'value', axisLabel: { color: '#64748b', formatter: '{value}万' }, splitLine: { show: false } }
     ],
     series: [
-      { name: '客资数', type: 'bar', data: d.map(x => x['客资数']), itemStyle: { color: '#22d3ee', borderRadius: [4,4,0,0] } },
-      { name: '订单数', type: 'bar', data: d.map(x => x['订单数']), itemStyle: { color: '#34d399', borderRadius: [4,4,0,0] } },
-      { name: '金额(万)', type: 'line', yAxisIndex: 1, data: d.map(x => x['订单金额_万']), itemStyle: { color: '#fbbf24' }, lineStyle: { width: 2 }, symbol: 'circle', symbolSize: 6 }
+      { name: '客资数', type: 'bar', data: d.map(x => x['客资数']), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#22d3ee' }, { offset: 1, color: 'rgba(34,211,238,0.3)' }]), borderRadius: [6, 6, 0, 0] } },
+      { name: '订单数', type: 'bar', data: d.map(x => x['订单数']), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#34d399' }, { offset: 1, color: 'rgba(52,211,153,0.3)' }]), borderRadius: [6, 6, 0, 0] } },
+      { name: '金额(万)', type: 'line', yAxisIndex: 1, data: d.map(x => x['订单金额_万']), itemStyle: { color: '#fbbf24' }, lineStyle: { width: 2.5 }, symbol: 'circle', symbolSize: 6 }
     ]
   });
 }
@@ -565,14 +688,14 @@ function renderCenterChart() {
   if (!chartCenter) chartCenter = initChart('centerChart');
   const d = filteredCenters.sort((a, b) => b['订单金额'] - a['订单金额']).slice(0, 15).reverse();
   chartCenter.setOption({
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 11 } },
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, tooltipStyle),
+    legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 11 }, itemWidth: 16, itemHeight: 3 },
     grid: { left: 100, right: 50, top: 36, bottom: 10 },
-    xAxis: { type: 'value', axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: '#1e293b' } } },
-    yAxis: { type: 'category', data: d.map(x => x['运营中心']), axisLabel: { color: '#e2e8f0', fontSize: 11, width: 90, overflow: 'truncate' } },
+    xAxis: { type: 'value', axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: 'rgba(51,65,85,0.2)', type: 'dashed' } } },
+    yAxis: { type: 'category', data: d.map(x => x['运营中心']), axisLabel: { color: '#94a3b8', fontSize: 11, width: 90, overflow: 'truncate' }, axisLine: { show: false }, axisTick: { show: false } },
     series: [
-      { name: '客资数', type: 'bar', data: d.map(x => x['客资数']), itemStyle: { color: '#60a5fa', borderRadius: [0,4,4,0] } },
-      { name: '订单数', type: 'bar', data: d.map(x => x['订单数']), itemStyle: { color: '#a78bfa', borderRadius: [0,4,4,0] } }
+      { name: '客资数', type: 'bar', data: d.map(x => x['客资数']), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: 'rgba(129,140,248,0.3)' }, { offset: 1, color: '#818cf8' }]), borderRadius: [0, 6, 6, 0] } },
+      { name: '订单数', type: 'bar', data: d.map(x => x['订单数']), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: 'rgba(167,139,250,0.3)' }, { offset: 1, color: '#a78bfa' }]), borderRadius: [0, 6, 6, 0] } }
     ]
   });
 }
@@ -588,15 +711,15 @@ function renderMonthlyCatChart() {
     type: 'bar',
     barMaxWidth: 60,
     data: records.map(r => r[cat] || 0),
-    itemStyle: { color: colors[i % colors.length], borderRadius: [4,4,0,0] },
-    label: { show: true, position: 'top', color: '#cbd5e1', fontSize: 11, formatter: function(p){ return p.value > 0 ? p.value : ''; } }
+    itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: colors[i % colors.length] }, { offset: 1, color: colors[i % colors.length].replace(')', ',0.2)').replace('rgb', 'rgba') }]), borderRadius: [6, 6, 0, 0] },
+    label: { show: true, position: 'top', color: '#cbd5e1', fontSize: 11, fontWeight: 600, formatter: function(p){ return p.value > 0 ? p.value : ''; } }
   }));
   chartMonthlyCat.setOption({
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 12 } },
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, tooltipStyle),
+    legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 12 }, itemWidth: 16, itemHeight: 3 },
     grid: { left: 60, right: 30, top: 40, bottom: 40 },
-    xAxis: { type: 'category', data: months, axisLabel: { color: '#e2e8f0', fontSize: 12 } },
-    yAxis: { type: 'value', name: '万元', nameTextStyle: { color: '#94a3b8' }, axisLabel: { color: '#94a3b8', formatter: '{value}' }, splitLine: { lineStyle: { color: '#1e293b' } } },
+    xAxis: { type: 'category', data: months, axisLabel: { color: '#94a3b8', fontSize: 12 }, axisLine: { lineStyle: { color: 'rgba(51,65,85,0.5)' } }, axisTick: { show: false } },
+    yAxis: { type: 'value', name: '万元', nameTextStyle: { color: '#64748b' }, axisLabel: { color: '#64748b', formatter: '{value}' }, splitLine: { lineStyle: { color: 'rgba(51,65,85,0.2)', type: 'dashed' } } },
     series: series
   });
 }
@@ -641,18 +764,18 @@ function renderProvinceCharts() {
     if (!chartKzProvince) chartKzProvince = initChart('kzProvinceChart');
     var kzMax = Math.max(...kzData.map(function(x){return x.value}),1);
     chartKzProvince.setOption({
-      tooltip: { trigger: 'item', formatter: function(p){ return p.name + '<br/>客资数: ' + (p.value || 0); } },
+      tooltip: Object.assign({ trigger: 'item', formatter: function(p){ return '<b style="color:#818cf8">' + p.name + '</b><br/>客资数: ' + (p.value || 0); } }, tooltipStyle),
       visualMap: { min: 0, max: kzMax, left: 20, bottom: 20, text: ['高','低'], textStyle: { color: '#cbd5e1', fontSize: 11 }, inRange: { color: ['#e0f2fe','#38bdf8','#0284c7','#075985','#0c4a6e'] }, calculable: true },
-      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: kzData, itemStyle: { borderColor: '#475569', borderWidth: 0.8 } }]
+      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: kzData, itemStyle: { borderColor: 'rgba(51,65,85,0.4)', borderWidth: 0.8 } }]
     });
 
     // 订单省份金额
     if (!chartOrderProvince) chartOrderProvince = initChart('orderProvinceChart');
     var odMax = Math.max(...odData.map(function(x){return x.value}),1);
     chartOrderProvince.setOption({
-      tooltip: { trigger: 'item', formatter: function(p){ return p.name + '<br/>金额: ' + (p.value || 0) + '万'; } },
+      tooltip: Object.assign({ trigger: 'item', formatter: function(p){ return '<b style="color:#f472b6">' + p.name + '</b><br/>金额: ' + (p.value || 0) + '万'; } }, tooltipStyle),
       visualMap: { min: 0, max: odMax, left: 20, bottom: 20, text: ['高','低'], textStyle: { color: '#cbd5e1', fontSize: 11 }, inRange: { color: ['#fee2e2','#f87171','#dc2626','#991b1b','#7f1d1d'] }, calculable: true },
-      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: odData, itemStyle: { borderColor: '#475569', borderWidth: 0.8 } }]
+      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: odData, itemStyle: { borderColor: 'rgba(51,65,85,0.4)', borderWidth: 0.8 } }]
     });
 
     // 运营中心气泡图 - 基于中国地图坐标
