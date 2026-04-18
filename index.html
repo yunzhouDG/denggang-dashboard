@@ -280,7 +280,7 @@
     <div class="chart-box small" id="orderProvinceChart" style="height:420px"></div>
   </div>
   <div class="chart-card">
-    <div class="chart-title">🗺️ 运营中心省份分布</div>
+    <div class="chart-title">📍 运营中心订单分布（气泡图）</div>
     <div class="chart-box small" id="centerProvinceChart" style="height:420px"></div>
   </div>
 </div>
@@ -655,13 +655,68 @@ function renderProvinceCharts() {
       series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: odData, itemStyle: { borderColor: '#475569', borderWidth: 0.8 } }]
     });
 
-    // 运营中心省份
+    // 运营中心气泡图（不需要 loadChinaMap）
     if (!chartCenterProvince) chartCenterProvince = initChart('centerProvinceChart');
-    var ctMax = Math.max(...ctData.map(function(x){return x.value}),1);
+    // 不需要地图模式，重新初始化为普通图表
+    chartCenterProvince.clear();
+    var centerData = DATA.centers || [];
+    var centerMax = Math.max(...centerData.map(function(x){ return (x['订单金额_万']||0); }), 1);
+    var centerMinSize = 15;
+    var centerMaxSize = 60;
     chartCenterProvince.setOption({
-      tooltip: { trigger: 'item', formatter: function(p){ return p.name + '<br/>运营中心数: ' + (p.value || 0); } },
-      visualMap: { min: 0, max: ctMax, left: 20, bottom: 20, text: ['多','少'], textStyle: { color: '#cbd5e1', fontSize: 11 }, inRange: { color: ['#dcfce7','#4ade80','#16a34a','#166534','#14532d'] }, calculable: true },
-      series: [{ type: 'map', map: 'china', roam: true, label: { show: true, color: '#1e293b', fontSize: 9 }, emphasis: { label: { color: '#fff', fontSize: 12, fontWeight: 'bold' }, itemStyle: { areaColor: '#f59e0b' } }, data: ctData, itemStyle: { borderColor: '#475569', borderWidth: 0.8 } }]
+      tooltip: {
+        trigger: 'item',
+        formatter: function(p) {
+          return p.name + '<br/>订单数: ' + (p.data['订单数']||0) + '<br/>订单金额: ' + (p.data['订单金额_万']||0) + '万';
+        }
+      },
+      grid: { left: 60, right: 40, top: 30, bottom: 60 },
+      xAxis: { type: 'value', show: false },
+      yAxis: { type: 'value', show: false },
+      series: [{
+        type: 'scatter',
+        symbolSize: function(data) {
+          return centerMinSize + (data['订单金额_万'] / centerMax) * (centerMaxSize - centerMinSize);
+        },
+        data: centerData.map(function(c) {
+          return {
+            name: c['运营中心'] || c['name'],
+            value: [
+              Math.random() * 80 + 10,
+              Math.random() * 80 + 10,
+              c['订单金额_万'] || 0
+            ],
+            '订单数': c['订单数'] || 0,
+            '订单金额_万': c['订单金额_万'] || 0
+          };
+        }),
+        itemStyle: {
+          color: new echarts.graphic.RadialGradient(0.4, 0.3, 1, [
+            { offset: 0, color: 'rgba(56,189,248,0.9)' },
+            { offset: 1, color: 'rgba(2,132,199,0.4)' }
+          ]),
+          shadowBlur: 10,
+          shadowColor: 'rgba(56,189,248,0.5)'
+        },
+        label: {
+          show: true,
+          formatter: function(p){ return p.name; },
+          position: 'bottom',
+          color: '#e2e8f0',
+          fontSize: 11,
+          fontWeight: 'bold'
+        },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 20,
+            shadowColor: 'rgba(56,189,248,0.8)',
+            color: new echarts.graphic.RadialGradient(0.4, 0.3, 1, [
+              { offset: 0, color: 'rgba(251,191,36,0.95)' },
+              { offset: 1, color: 'rgba(245,158,11,0.5)' }
+            ])
+          }
+        }
+      }]
     });
   });
 }
