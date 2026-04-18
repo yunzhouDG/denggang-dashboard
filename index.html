@@ -279,7 +279,7 @@ let DATA, filteredKPI, filteredDetail, filteredOrders, filteredDaily;
 let filteredBrands, filteredCategories, filteredCenters, filteredAreas;
 let chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter;
 
-fetch('dashboard_data.json')
+fetch('dashboard_data.json?t='+Date.now())
   .then(r => r.json())
   .then(data => {
     DATA = data;
