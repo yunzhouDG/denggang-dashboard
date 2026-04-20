@@ -92,7 +92,11 @@
 
   }
 
-  @keyframes bgShift {
+
+  @keyframes countUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .kpi-value { animation: countUp 0.6s ease-out; }
+
+    @keyframes bgShift {
 
     0% { transform: translate(0, 0); }
 
@@ -496,6 +500,9 @@
   .rate-high { background: rgba(20,184,166,0.12); color: #14b8a6; }
   .rate-top { background: rgba(99,102,241,0.15); color: #818cf8; }
   .deal-rate-high { color: var(--red) !important; font-weight: 700; }
+  .kpi-sparkline { height: 32px; margin-top: 6px; }
+  .kpi-sparkline svg { width: 100%; height: 100%; }
+
 
   .tag {
 
@@ -677,6 +684,7 @@
 
     .kpi-row, .charts-grid, .charts-row, .summary-section { padding-left: 16px; padding-right: 16px; }
     .summary-grid { grid-template-columns: 1fr; }
+    .charts-row .span3 { grid-column: span 1; }
 
     .filter-bar { padding-left: 16px; padding-right: 16px; }
 
@@ -830,17 +838,44 @@
 <div class="charts-row" style="margin-top:16px">
   <div class="chart-card">
     <div class="chart-title">📡 客资形式分布</div>
-    <div class="chart-box" id="sourceChart" style="height:380px"></div>
+    <div class="chart-box" id="sourceChart" style="height:360px"></div>
   </div>
   <div class="chart-card">
     <div class="chart-title">🏆 Top10 商品类目（订单金额）</div>
-    <div class="chart-box" id="top10ProductChart" style="height:380px"></div>
+    <div class="chart-box" id="top10ProductChart" style="height:360px"></div>
   </div>
   <div class="chart-card">
     <div class="chart-title">📊 品类成交率对比</div>
-    <div class="chart-box" id="categoryConvChart" style="height:380px"></div>
+    <div class="chart-box" id="categoryConvChart" style="height:360px"></div>
   </div>
 </div>
+
+<div class="charts-row" style="margin-top:16px">
+  <div class="chart-card">
+    <div class="chart-title">🏪 门店Top10排行（订单金额）</div>
+    <div class="chart-box" id="top10StoreChart" style="height:360px"></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">🏷️ 品牌成交金额占比</div>
+    <div class="chart-box" id="brandAmountChart" style="height:360px"></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">🏙️ 省份Top10排行（订单金额）</div>
+    <div class="chart-box" id="provinceTop10Chart" style="height:360px"></div>
+  </div>
+</div>
+
+<div class="charts-row" style="margin-top:16px">
+  <div class="chart-card span3">
+    <div class="chart-title">🔄 每日漏斗转化趋势</div>
+    <div class="chart-box" id="dailyFunnelChart" style="height:280px"></div>
+  </div>
+</div>
+
+<!-- CSS for span3 -->
+<style>
+  .charts-row .span3 { grid-column: span 3; }
+</style>
 
 
 
@@ -860,7 +895,7 @@ let DATA, filteredKPI, filteredDetail, filteredOrders, filteredDaily;
 
 let filteredBrands, filteredCategories, filteredCenters, filteredAreas;
 
-let chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product, chartSource, chartCategoryConv;
+let chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product, chartSource, chartCategoryConv, chartTop10Store, chartBrandAmount, chartProvinceTop10, chartDailyFunnel;
 
 let chartKzProvince, chartOrderProvince, chartCenterProvince;
 
@@ -1094,7 +1129,7 @@ function applyFilters() {
 
   renderKPI(); renderDailyTrend(); renderRateTrend(); renderFunnel();
 
-  renderBrandChart(); renderCategoryChart(); renderCenterChart(); renderMonthlyCatChart(); renderProvinceCharts(); renderTop10Products(); renderSourceChart(); renderCategoryConv(); renderSummary();
+  renderBrandChart(); renderCategoryChart(); renderCenterChart(); renderMonthlyCatChart(); renderProvinceCharts(); renderTop10Products(); renderSourceChart(); renderCategoryConv(); renderTop10Stores(); renderBrandAmount(); renderProvinceTop10(); renderDailyFunnel(); renderSummary();
 
 }
 
@@ -1137,34 +1172,83 @@ const kpiConfig = [
 
 
 function renderKPI() {
+  const kpi = filteredKPI;
+  const container = document.getElementById('kpiContainer');
+  const spark = DATA.sparkline || { dates: [], totalKz: [], validKz: [], assigned: [], followed: [], orders: [], amountWan: [] };
 
-  const kpiRow = document.getElementById('kpiRow');
+  function sparkSVG(data, color) {
+    if (!data || data.length < 2) return '';
+    const max = Math.max(...data);
+    const min = Math.min(...data);
+    const range = max - min || 1;
+    const w = 120, h = 30, pad = 2;
+    const pts = data.map((v, i) => {
+      const x = pad + (i / (data.length - 1)) * (w - 2*pad);
+      const y = pad + (1 - (v - min) / range) * (h - 2*pad);
+      return x + ',' + y;
+    }).join(' ');
+    const areaPts = pts + ' ' + (pad + (w - 2*pad)) + ',' + h + ' ' + pad + ',' + h;
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">'
+      + '<defs><linearGradient id="sg-' + color.replace('#','') + '" x1="0" y1="0" x2="0" y2="1">'
+      + '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.3"/>'
+      + '<stop offset="100%" stop-color="' + color + '" stop-opacity="0.02"/>'
+      + '</linearGradient></defs>'
+      + '<polygon points="' + areaPts + '" fill="url(#sg-' + color.replace('#','') + ')" />'
+      + '<polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />'
+      + '</svg>';
+  }
 
-  kpiRow.innerHTML = '';
+  function animNum(el, target) {
+    const duration = 800;
+    const start = performance.now();
+    const initial = 0;
+    function tick(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      const val = initial + (target - initial) * ease;
+      el.textContent = fmt.format(val);
+      if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
 
-  kpiConfig.forEach(item => {
+  const fmt = new Intl.NumberFormat('zh-CN');
 
-    const val = filteredKPI[item.key];
+  const configs = [
+    { key: 'totalKz', label: '总客资', cls: 'blue', color: '#818cf8', val: kpi.totalKz, unit: '', sparkData: spark.totalKz },
+    { key: 'validKz', label: '有效客资', cls: 'cyan', color: '#22d3ee', val: kpi.validKz, unit: '', sparkData: spark.validKz },
+    { key: 'assigned', label: '分配数', cls: 'green', color: '#34d399', val: kpi.assigned, unit: '', sparkData: spark.assigned },
+    { key: 'followed', label: '跟进数', cls: 'green', color: '#34d399', val: kpi.followed, unit: '', sparkData: spark.followed },
+    { key: 'orders', label: '成交数', cls: 'purple', color: '#a78bfa', val: kpi.orders, unit: '', sparkData: spark.orders },
+    { key: 'amountWan', label: '订单金额', cls: 'pink', color: '#f472b6', val: kpi.amountWan, unit: '万', sparkData: spark.amountWan },
+    { key: 'assignRate', label: '分配率', cls: 'amber', color: '#fbbf24', val: kpi.assignRate, unit: '%' },
+    { key: 'followRate', label: '跟进率', cls: 'amber', color: '#fbbf24', val: kpi.followRate, unit: '%' },
+    { key: 'dealRate', label: '成交率', cls: 'red', color: '#f87171', val: kpi.dealRate, unit: '%' },
+  ];
 
-    const cls = typeof item.cls === 'function' ? item.cls(val) : item.cls;
+  container.innerHTML = configs.map(c =>
+    '<div class="kpi-card">'
+    + '<div class="kpi-label">' + c.label + '</div>'
+    + '<div class="kpi-value" id="kpi-' + c.key + '">' + c.val + (c.unit ? '<span class="unit">' + c.unit + '</span>' : '') + '</div>'
+    + (c.sparkData ? '<div class="kpi-sparkline">' + sparkSVG(c.sparkData, c.color) + '</div>' : '')
+    + '</div>'
+  ).join('');
 
-    const color = typeof item.color === 'function' ? item.color(val) : item.color;
-
-    kpiRow.innerHTML += `
-
-      <div class="kpi-card" style="--kpi-color:${color}">
-
-        <div class="label">${item.label}</div>
-
-        <div class="value ${cls}">${item.format(val)}</div>
-
-      </div>`;
-
+  // Animate numbers
+  configs.forEach(c => {
+    const el = document.getElementById('kpi-' + c.key);
+    if (!el) return;
+    if (c.unit === '万') {
+      animNum(el, c.val);
+      setTimeout(() => { el.innerHTML = c.val + '<span class="unit">万</span>'; }, 850);
+    } else if (c.unit === '%') {
+      animNum(el, c.val);
+      setTimeout(() => { el.innerHTML = c.val + '<span class="unit">%</span>'; }, 850);
+    } else {
+      animNum(el, c.val);
+    }
   });
-
 }
-
-
 
 // ===== ECharts common =====
 
@@ -2091,11 +2175,147 @@ function renderSummary() {
 
 
 
+// ===== Top10 Stores Chart =====
+function renderTop10Stores() {
+  var data = (DATA.top10Stores || []);
+  if (!data.length) return;
+  if (!chartTop10Store) chartTop10Store = initChart('top10StoreChart');
+  var names = data.map(function(x) { return x['门店名称'].length > 10 ? x['门店名称'].substring(0,10)+'...' : x['门店名称']; }).reverse();
+  var amounts = data.map(function(x) { return x['订单金额_万']; }).reverse();
+  var maxAmt = Math.max.apply(null, amounts);
+  chartTop10Store.setOption({
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, tooltipStyle),
+    grid: { left: 140, right: 40, top: 10, bottom: 20 },
+    xAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(51,65,85,0.2)', type: 'dashed' } }, axisLabel: { color: '#94a3b8', formatter: '{value}万' } },
+    yAxis: { type: 'category', data: names, axisLabel: { color: '#cbd5e1', fontSize: 11 } },
+    series: [{
+      type: 'bar', data: amounts.map(function(v) {
+        var ratio = v / maxAmt;
+        return {
+          value: v,
+          itemStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+              { offset: 0, color: 'rgba(6,182,212,0.2)' },
+              { offset: 1, color: 'rgba(6,182,212,' + (0.4 + ratio * 0.6) + ')' }
+            ]),
+            borderRadius: [0, 6, 6, 0]
+          }
+        };
+      }),
+      barWidth: 18,
+      label: { show: true, position: 'right', formatter: '{c}万', color: '#e2e8f0', fontSize: 11, fontWeight: 'bold' }
+    }]
+  });
+}
+
+// ===== Brand Amount Pie =====
+function renderBrandAmount() {
+  var data = (DATA.brandAmount || []);
+  if (!data.length) return;
+  if (!chartBrandAmount) chartBrandAmount = initChart('brandAmountChart');
+  var colors = ['rgba(99,102,241,0.85)', 'rgba(6,182,212,0.85)', 'rgba(168,85,247,0.85)', 'rgba(236,72,153,0.85)', 'rgba(20,184,166,0.85)', 'rgba(251,146,60,0.85)'];
+  chartBrandAmount.setOption({
+    tooltip: Object.assign({
+      trigger: 'item',
+      formatter: function(p) {
+        return '<b style="color:#818cf8">' + p.name + '</b><br/>'
+          + '<span style="color:#94a3b8">金额：</span><b>' + p.value + '万</b><br/>'
+          + '<span style="color:#94a3b8">占比：</span><b>' + p.percent + '%</b>';
+      }
+    }, tooltipStyle),
+    legend: {
+      orient: 'vertical', right: 10, top: 'center',
+      textStyle: { color: '#cbd5e1', fontSize: 12 },
+      itemWidth: 14, itemHeight: 14, itemGap: 12
+    },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      center: ['35%', '50%'],
+      avoidLabelOverlap: false,
+      label: { show: false },
+      emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#f0f9ff' } },
+      itemStyle: { borderColor: 'rgba(15,23,42,0.8)', borderWidth: 2, borderRadius: 6 },
+      data: data.map(function(item, i) {
+        return { name: item['品牌'], value: item['订单金额_万'], itemStyle: { color: colors[i % colors.length] } };
+      })
+    }]
+  });
+}
+
+// ===== Province Top10 Bar =====
+function renderProvinceTop10() {
+  var data = (DATA.provinceTop10 || []);
+  if (!data.length) return;
+  if (!chartProvinceTop10) chartProvinceTop10 = initChart('provinceTop10Chart');
+  var names = data.map(function(x) { return x['省市']; }).reverse();
+  var amounts = data.map(function(x) { return x['订单金额_万']; }).reverse();
+  var maxAmt = Math.max.apply(null, amounts);
+  chartProvinceTop10.setOption({
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, tooltipStyle),
+    grid: { left: 80, right: 40, top: 10, bottom: 20 },
+    xAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(51,65,85,0.2)', type: 'dashed' } }, axisLabel: { color: '#94a3b8', formatter: '{value}万' } },
+    yAxis: { type: 'category', data: names, axisLabel: { color: '#cbd5e1', fontSize: 11 } },
+    series: [{
+      type: 'bar', data: amounts.map(function(v) {
+        var ratio = v / maxAmt;
+        return {
+          value: v,
+          itemStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+              { offset: 0, color: 'rgba(168,85,247,0.2)' },
+              { offset: 1, color: 'rgba(168,85,247,' + (0.4 + ratio * 0.6) + ')' }
+            ]),
+            borderRadius: [0, 6, 6, 0]
+          }
+        };
+      }),
+      barWidth: 18,
+      label: { show: true, position: 'right', formatter: '{c}万', color: '#e2e8f0', fontSize: 11, fontWeight: 'bold' }
+    }]
+  });
+}
+
+// ===== Daily Funnel Trend =====
+function renderDailyFunnel() {
+  var data = (DATA.dailyFunnel || []);
+  if (!data.length) return;
+  if (!chartDailyFunnel) chartDailyFunnel = initChart('dailyFunnelChart');
+  var dates = data.map(function(x) { return x['日期'].substring(5); });
+  var series = ['总客资','有效客资','分配数','跟进数','成交数'];
+  var colors = ['rgba(99,102,241,0.6)','rgba(6,182,212,0.6)','rgba(20,184,166,0.6)','rgba(251,146,60,0.6)','rgba(236,72,153,0.6)'];
+  chartDailyFunnel.setOption({
+    tooltip: Object.assign({ trigger: 'axis' }, tooltipStyle),
+    legend: {
+      data: series, top: 0,
+      textStyle: { color: '#cbd5e1', fontSize: 11 },
+      itemWidth: 14, itemHeight: 8, itemGap: 16
+    },
+    grid: { left: 50, right: 20, top: 35, bottom: 25 },
+    xAxis: { type: 'category', data: dates, boundaryGap: false, axisLabel: { color: '#94a3b8', fontSize: 10, interval: Math.floor(dates.length / 15) }, axisLine: { lineStyle: { color: 'rgba(51,65,85,0.3)' } } },
+    yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(51,65,85,0.15)', type: 'dashed' } }, axisLabel: { color: '#94a3b8', fontSize: 10 } },
+    series: series.map(function(name, i) {
+      return {
+        name: name, type: 'line', smooth: true,
+        data: data.map(function(d) { return d[name]; }),
+        lineStyle: { color: colors[i], width: 2 },
+        itemStyle: { color: colors[i] },
+        areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: colors[i].replace('0.6', '0.15') },
+          { offset: 1, color: colors[i].replace('0.6', '0.01') }
+        ])},
+        symbol: 'none',
+        emphasis: { lineStyle: { width: 3 } }
+      };
+    })
+  });
+}
+
 // ===== Resize handler =====
 
 window.addEventListener('resize', () => {
 
-  [chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product, chartSource, chartCategoryConv, chartKzProvince, chartOrderProvince, chartCenterProvince].forEach(c => c && c.resize());
+  [chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product, chartSource, chartCategoryConv, chartKzProvince, chartOrderProvince, chartCenterProvince, chartTop10Store, chartBrandAmount, chartProvinceTop10, chartDailyFunnel].forEach(c => c && c.resize());
 
 });
 
