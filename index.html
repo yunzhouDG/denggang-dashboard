@@ -1173,7 +1173,7 @@ const kpiConfig = [
 
 function renderKPI() {
   const kpi = filteredKPI;
-  const container = document.getElementById('kpiContainer');
+  const container = document.getElementById('kpiRow');
   const spark = DATA.sparkline || { dates: [], totalKz: [], validKz: [], assigned: [], followed: [], orders: [], amountWan: [] };
 
   function sparkSVG(data, color) {
