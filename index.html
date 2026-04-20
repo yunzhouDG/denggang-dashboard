@@ -827,24 +827,18 @@
 
 </div>
 
-<div style="margin-top:16px; padding: 0 28px;">
+<div class="charts-row" style="margin-top:16px">
   <div class="chart-card">
-    <div class="chart-title">📡 客资来源分布</div>
-    <div class="chart-box" id="sourceChart" style="height:320px"></div>
+    <div class="chart-title">📡 客资形式分布</div>
+    <div class="chart-box" id="sourceChart" style="height:380px"></div>
   </div>
-</div>
-
-<div style="margin-top:16px; padding: 0 28px;">
   <div class="chart-card">
     <div class="chart-title">🏆 Top10 商品类目（订单金额）</div>
-    <div class="chart-box" id="top10ProductChart" style="height:320px"></div>
+    <div class="chart-box" id="top10ProductChart" style="height:380px"></div>
   </div>
-</div>
-
-<div style="margin-top:16px; padding: 0 28px;">
   <div class="chart-card">
     <div class="chart-title">📊 品类成交率对比</div>
-    <div class="chart-box" id="categoryConvChart" style="height:320px"></div>
+    <div class="chart-box" id="categoryConvChart" style="height:380px"></div>
   </div>
 </div>
 
@@ -1949,12 +1943,14 @@ function renderSourceChart() {
         borderRadius: 6
       },
       data: data.map(function(item, i) {
-        var colors = [
-          'rgba(99,102,241,0.85)', 'rgba(168,85,247,0.85)', 'rgba(236,72,153,0.85)',
-          'rgba(14,165,233,0.85)', 'rgba(20,184,166,0.85)', 'rgba(132,204,22,0.85)',
-          'rgba(251,146,60,0.85)', 'rgba(248,113,113,0.85)'
-        ];
-        return { name: item.name, value: item.value, itemStyle: { color: colors[i % colors.length] } };
+        var colorMap = {
+          '家享联盟': 'rgba(20,184,166,0.85)',
+          '客服卡片': 'rgba(99,102,241,0.85)',
+          '其他': 'rgba(148,163,184,0.7)'
+        };
+        var colors = ['rgba(99,102,241,0.85)', 'rgba(20,184,166,0.85)', 'rgba(148,163,184,0.7)'];
+        var c = colorMap[item.name] || colors[i % colors.length];
+        return { name: item.name, value: item.value, itemStyle: { color: c } };
       })
     }]
   });
