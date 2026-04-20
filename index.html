@@ -1534,7 +1534,14 @@ function renderMonthlyCatChart() {
 
   const cats = Object.keys(records[0] || {}).filter(k => k !== '月份');
 
-  const colors = ['#22d3ee','#f472b6','#a78bfa','#fbbf24','#34d399','#fb7185'];
+  const colorPairs = [
+    ['#22d3ee','rgba(34,211,238,0.2)'],
+    ['#f472b6','rgba(244,114,182,0.2)'],
+    ['#a78bfa','rgba(167,139,250,0.2)'],
+    ['#fbbf24','rgba(251,191,36,0.2)'],
+    ['#34d399','rgba(52,211,153,0.2)'],
+    ['#fb7185','rgba(251,113,133,0.2)']
+  ];
 
   const series = cats.map((cat, i) => ({
 
@@ -1546,7 +1553,7 @@ function renderMonthlyCatChart() {
 
     data: records.map(r => r[cat] || 0),
 
-    itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: colors[i % colors.length] }, { offset: 1, color: colors[i % colors.length] + '33' }]), borderRadius: [6, 6, 0, 0] },
+    itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: colorPairs[i % colorPairs.length][0] }, { offset: 1, color: colorPairs[i % colorPairs.length][1] }]), borderRadius: [6, 6, 0, 0] },
 
     label: { show: true, position: 'top', color: '#cbd5e1', fontSize: 11, fontWeight: 600, formatter: function(p){ return p.value > 0 ? p.value : ''; } }
 
