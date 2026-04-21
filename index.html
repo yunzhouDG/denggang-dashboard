@@ -1564,53 +1564,33 @@ function renderMonthlyCatChart() {
     ['#fb7185','rgba(251,113,133,0.2)']
   ];
 
+  // Precompute monthly totals for top labels
+  var monthlyTotals = records.map(r => cats.reduce(function(s, c) { return s + (r[c] || 0); }, 0));
+
   const series = cats.map((cat, i) => ({
-
     name: cat,
-
     type: 'bar',
-
     barMaxWidth: 60,
-
     stack: 'total',
-
     data: records.map(r => r[cat] || 0),
-
-    itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: colorPairs[i % colorPairs.length][0] }, { offset: 1, color: colorPairs[i % colorPairs.length][1] }]), borderRadius: i === 0 ? [6, 6, 0, 0] : [0, 0, 0, 0] },
-
-    label: { show: false }
-
+    itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: colorPairs[i % colorPairs.length][0] }, { offset: 1, color: colorPairs[i % colorPairs.length][1] }]), borderRadius: [0, 0, 0, 0] },
+    label: {
+      show: i === cats.length - 1,
+      position: 'top',
+      color: '#e2e8f0',
+      fontSize: 11,
+      fontWeight: 'bold',
+      formatter: function(p) { return monthlyTotals[p.dataIndex] > 0 ? monthlyTotals[p.dataIndex] : ''; }
+    }
   }));
 
-  // Top label series showing monthly total
-  var totalSeries = {
-    name: '合计',
-    type: 'bar',
-    stack: 'total',
-    barMaxWidth: 60,
-    data: records.map(r => {
-      var sum = cats.reduce(function(s, c) { return s + (r[c] || 0); }, 0);
-      return { value: 0, label: { show: sum > 0, position: 'top', color: '#e2e8f0', fontSize: 11, fontWeight: 'bold', formatter: String(sum) } };
-    }),
-    itemStyle: { color: 'transparent' },
-    tooltip: { show: false }
-  };
-  series.push(totalSeries);
-
   chartMonthlyCat.setOption({
-
     tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, tooltipStyle),
-
     legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 12 }, itemWidth: 16, itemHeight: 3 },
-
     grid: { left: 60, right: 30, top: 40, bottom: 40 },
-
     xAxis: { type: 'category', data: months, axisLabel: { color: '#94a3b8', fontSize: 12 }, axisLine: { lineStyle: { color: 'rgba(51,65,85,0.5)' } }, axisTick: { show: false } },
-
     yAxis: { type: 'value', name: '万元', nameTextStyle: { color: '#64748b' }, axisLabel: { color: '#64748b', formatter: '{value}' }, splitLine: { lineStyle: { color: 'rgba(51,65,85,0.2)', type: 'dashed' } } },
-
     series: series
-
   });
 
 }
