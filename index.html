@@ -261,7 +261,7 @@
 
   .kpi-card:hover::before { opacity: 1; }
 
-  .kpi-card .label {
+  .kpi-card .kpi-label {
 
     font-size: 11px;
 
@@ -275,13 +275,22 @@
 
     letter-spacing: 1px;
 
-    font-weight: 500;
+    font-weight: 600;
 
   }
 
-  .kpi-card .value {
+  /* label color by theme */
+  .kpi-card .kpi-label.blue   { color: #a5b4fc; }
+  .kpi-card .kpi-label.cyan   { color: #67e8f9; }
+  .kpi-card .kpi-label.green  { color: #6ee7b7; }
+  .kpi-card .kpi-label.amber  { color: #fcd34d; }
+  .kpi-card .kpi-label.purple { color: #c4b5fd; }
+  .kpi-card .kpi-label.pink   { color: #f9a8d4; }
+  .kpi-card .kpi-label.red    { color: #fca5a5; }
 
-    font-size: 26px;
+  .kpi-card .kpi-value {
+
+    font-size: 28px;
 
     font-weight: 800;
 
@@ -291,19 +300,25 @@
 
   }
 
-  .kpi-card .value.blue { color: #818cf8; }
+  /* value color by theme */
+  .kpi-card .kpi-value.blue   { color: #818cf8; }
+  .kpi-card .kpi-value.cyan   { color: #22d3ee; }
+  .kpi-card .kpi-value.green  { color: #34d399; }
+  .kpi-card .kpi-value.amber  { color: #fbbf24; }
+  .kpi-card .kpi-value.purple { color: #a78bfa; }
+  .kpi-card .kpi-value.pink   { color: #f472b6; }
+  .kpi-card .kpi-value.red    { color: #f87171; }
 
-  .kpi-card .value.cyan { color: #22d3ee; }
-
-  .kpi-card .value.green { color: #34d399; }
-
-  .kpi-card .value.amber { color: #fbbf24; }
-
+  /* keep old .value/.label aliases for backward compat */
+  .kpi-card .label { color: var(--text-dim); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .kpi-card .value { font-size: 28px; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .kpi-card .value.blue   { color: #818cf8; }
+  .kpi-card .value.cyan   { color: #22d3ee; }
+  .kpi-card .value.green  { color: #34d399; }
+  .kpi-card .value.amber  { color: #fbbf24; }
   .kpi-card .value.purple { color: #a78bfa; }
-
-  .kpi-card .value.pink { color: #f472b6; }
-
-  .kpi-card .value.red { color: #f87171; }
+  .kpi-card .value.pink   { color: #f472b6; }
+  .kpi-card .value.red    { color: #f87171; }
 
   .kpi-card .unit {
 
@@ -313,7 +328,7 @@
 
     margin-left: 1px;
 
-    opacity: 0.7;
+    opacity: 0.8;
 
   }
 
@@ -1230,9 +1245,9 @@ function renderKPI() {
   ];
 
   container.innerHTML = configs.map(c =>
-    '<div class="kpi-card">'
-    + '<div class="kpi-label">' + c.label + '</div>'
-    + '<div class="kpi-value" id="kpi-' + c.key + '">' + c.val + (c.unit ? '<span class="unit">' + c.unit + '</span>' : '') + '</div>'
+    '<div class="kpi-card" style="--kpi-color:' + c.color + '">'
+    + '<div class="kpi-label ' + c.cls + '">' + c.label + '</div>'
+    + '<div class="kpi-value ' + c.cls + '" id="kpi-' + c.key + '">' + c.val + (c.unit ? '<span class="unit">' + c.unit + '</span>' : '') + '</div>'
     + (c.sparkData ? '<div class="kpi-sparkline">' + sparkSVG(c.sparkData, c.color) + '</div>' : '')
     + '</div>'
   ).join('');
