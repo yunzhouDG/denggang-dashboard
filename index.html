@@ -1312,13 +1312,16 @@ function renderFunnel() {
 
   ];
 
-  const funnelData = d.map((v, i) => ({ name: v.name, value: v.value, itemStyle: { color: colors[i] } }));
+  const funnelData = d.map((v, i) => {
+    var rate = i > 0 && d[0].value > 0 ? (v.value / d[0].value * 100).toFixed(1) + '%' : '100%';
+    return { name: v.name + '\n' + v.value.toLocaleString() + '  ' + rate, value: v.value, itemStyle: { color: colors[i] } };
+  });
 
   chartFunnel.setOption({
 
-    tooltip: Object.assign({ trigger: 'item', formatter: '{b}: {c} ({d}%)' }, tooltipStyle),
+    tooltip: Object.assign({ trigger: 'item', formatter: function(p) { return '<b>' + d[p.dataIndex].name + '</b><br/>数量：' + p.value.toLocaleString() + '<br/>占总量：' + p.percent + '%'; } }, tooltipStyle),
 
-    series: [{ type: 'funnel', left: '10%', right: '10%', top: 10, bottom: 10, width: '80%', sort: 'descending', gap: 4, label: { show: true, position: 'inside', color: '#fff', fontSize: 13, fontWeight: 600 }, labelLine: { show: false }, itemStyle: { borderColor: 'rgba(5,10,24,0.8)', borderWidth: 2 }, emphasis: { label: { fontSize: 15 } }, data: funnelData }]
+    series: [{ type: 'funnel', left: '10%', right: '10%', top: 10, bottom: 10, width: '80%', sort: 'descending', gap: 4, label: { show: true, position: 'inside', color: '#fff', fontSize: 13, fontWeight: 600, lineHeight: 18, formatter: '{b}' }, labelLine: { show: false }, itemStyle: { borderColor: 'rgba(5,10,24,0.8)', borderWidth: 2 }, emphasis: { label: { fontSize: 15 } }, data: funnelData }]
 
   });
 
@@ -1573,7 +1576,7 @@ function renderMonthlyCatChart() {
 
     itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: colorPairs[i % colorPairs.length][0] }, { offset: 1, color: colorPairs[i % colorPairs.length][1] }]), borderRadius: [6, 6, 0, 0] },
 
-    label: { show: true, position: 'top', color: '#cbd5e1', fontSize: 11, fontWeight: 600, formatter: function(p){ return p.value > 0 ? p.value : ''; } }
+    label: { show: true, position: 'top', color: '#cbd5e1', fontSize: 10, fontWeight: 600, rotate: 30, formatter: function(p){ return p.value > 0 ? p.value : ''; } }
 
   }));
 
@@ -2042,7 +2045,8 @@ function renderSourceChart() {
       radius: ['40%', '70%'],
       center: ['35%', '50%'],
       avoidLabelOverlap: false,
-      label: { show: false },
+      label: { show: true, color: '#cbd5e1', fontSize: 12, fontWeight: 'bold', formatter: '{b}\n{d}%' },
+      labelLine: { show: true, lineStyle: { color: 'rgba(148,163,184,0.5)' } },
       emphasis: {
         label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#f0f9ff' }
       },
@@ -2258,7 +2262,8 @@ function renderBrandAmount() {
       radius: ['40%', '70%'],
       center: ['35%', '50%'],
       avoidLabelOverlap: false,
-      label: { show: false },
+      label: { show: true, color: '#cbd5e1', fontSize: 12, fontWeight: 'bold', formatter: '{b}\n{c}万 {d}%' },
+      labelLine: { show: true, lineStyle: { color: 'rgba(148,163,184,0.5)' } },
       emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#f0f9ff' } },
       itemStyle: { borderColor: 'rgba(15,23,42,0.8)', borderWidth: 2, borderRadius: 6 },
       data: data.map(function(item, i) {
