@@ -418,7 +418,11 @@
 
     padding: 0 28px 16px;
 
+    margin-top: 0;
+
   }
+
+  .charts-row + .charts-row { margin-top: 0; }
 
 
   /* Summary Section */
@@ -762,149 +766,123 @@
 
 
 
-<div class="charts-grid">
-
+<!-- Row 1: 每日趋势（客资数 vs 订单数） -->
+<div class="charts-row">
   <div class="chart-card full">
-
     <div class="chart-title">📊 每日趋势（客资数 vs 订单数）</div>
-
     <div class="chart-box" id="dailyTrendChart" style="height:320px"></div>
-
   </div>
+</div>
 
+<!-- Row 2: 每日漏斗转化趋势 -->
+<div class="charts-row">
   <div class="chart-card full">
-
     <div class="chart-title">🔄 每日漏斗转化趋势</div>
-
     <div class="chart-box" id="dailyFunnelChart" style="height:300px"></div>
-
   </div>
+</div>
 
+<!-- Row 3: 日度四率走势 + 转化漏斗 -->
+<div class="charts-row">
   <div class="chart-card span2">
-
     <div class="chart-title">📈 日度四率走势（有效客资率/分配率/跟进率/成交率）</div>
-
     <div class="chart-box" id="trendChart"></div>
-
   </div>
-
   <div class="chart-card">
-
     <div class="chart-title">🔻 转化漏斗</div>
-
     <div class="chart-box" id="funnelChart"></div>
-
   </div>
+</div>
 
-  <div class="charts-row" style="margin-top:16px">
-    <div class="chart-card">
-      <div class="chart-title">🗺️ 片区金额占比</div>
-      <div class="chart-box" id="areaAmountPieChart" style="height:400px"></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">📦 品类金额占比</div>
-      <div class="chart-box" id="categoryAmountPieChart" style="height:400px"></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">🏷️ 品牌成交金额占比</div>
-      <div class="chart-box" id="brandAmountChart" style="height:400px"></div>
-    </div>
+<!-- Row 4: 片区金额占比 + 品类金额占比 + 品牌成交金额占比 -->
+<div class="charts-row">
+  <div class="chart-card">
+    <div class="chart-title">🗺️ 片区金额占比</div>
+    <div class="chart-box" id="areaAmountPieChart" style="height:400px"></div>
   </div>
+  <div class="chart-card">
+    <div class="chart-title">📦 品类金额占比</div>
+    <div class="chart-box" id="categoryAmountPieChart" style="height:400px"></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">🏷️ 品牌成交金额占比</div>
+    <div class="chart-box" id="brandAmountChart" style="height:400px"></div>
+  </div>
+</div>
 
-  <div class="charts-row" style="margin-top:16px">
-
+<!-- Row 5: 月度品类金额 -->
+<div class="charts-row">
   <div class="chart-card full">
-
     <div class="chart-title">💰 月度品类金额（万元）</div>
-
     <div class="chart-box" id="monthlyCatChart" style="height:360px"></div>
-
   </div>
+</div>
 
+<!-- Row 6: 品牌分析 + 品类分析 + 运营中心TOP15 -->
+<div class="charts-row">
   <div class="chart-card">
-
     <div class="chart-title">🏷️ 品牌分析</div>
-
     <div class="chart-box small" id="brandChart"></div>
-
   </div>
-
   <div class="chart-card">
-
     <div class="chart-title">📦 品类分析</div>
-
     <div class="chart-box small" id="categoryChart"></div>
-
   </div>
-
   <div class="chart-card">
-
     <div class="chart-title">🏢 运营中心TOP15</div>
-
     <div class="chart-box small" id="centerChart"></div>
-
   </div>
-
 </div>
 
-
-
-<div class="charts-row" style="margin-top:16px">
-
-
-  <div class="chart-card">
-
+<!-- Row 7: 客资省份分布 + 订单省份金额 -->
+<div class="charts-row">
+  <div class="chart-card span2">
     <div class="chart-title">🗺️ 客资省份分布</div>
-
     <div class="chart-box small" id="kzProvinceChart" style="height:420px"></div>
-
   </div>
-
   <div class="chart-card">
-
     <div class="chart-title">🗺️ 订单省份金额（万元）</div>
-
     <div class="chart-box small" id="orderProvinceChart" style="height:420px"></div>
-
   </div>
-
-  <div class="chart-card">
-
-    <div class="chart-title">📍 运营中心订单分布（气泡图）</div>
-
-    <div class="chart-box small" id="centerProvinceChart" style="height:420px"></div>
-
-  </div>
-
 </div>
 
-<div class="charts-row" style="margin-top:16px">
+<!-- Row 8: 运营中心订单分布 + 客资形式分布 -->
+<div class="charts-row">
+  <div class="chart-card span2">
+    <div class="chart-title">📍 运营中心订单分布（气泡图）</div>
+    <div class="chart-box small" id="centerProvinceChart" style="height:420px"></div>
+  </div>
   <div class="chart-card">
     <div class="chart-title">📡 客资形式分布</div>
     <div class="chart-box" id="sourceChart" style="height:360px"></div>
   </div>
+</div>
+
+<!-- Row 9: Top10商品类目 + 门店Top10 + 省份Top10 -->
+<div class="charts-row">
   <div class="chart-card">
     <div class="chart-title">🏆 Top10 商品类目（订单金额）</div>
     <div class="chart-box" id="top10ProductChart" style="height:360px"></div>
   </div>
   <div class="chart-card">
-    <div class="chart-title">📊 品类成交率对比</div>
-    <div class="chart-box" id="categoryConvChart" style="height:360px"></div>
-  </div>
-</div>
-
-<div class="charts-row" style="margin-top:16px">
-  <div class="chart-card">
     <div class="chart-title">🏪 门店Top10排行（订单金额）</div>
     <div class="chart-box" id="top10StoreChart" style="height:360px"></div>
   </div>
   <div class="chart-card">
+    <div class="chart-title">🏙️ 省份Top10排行（订单金额）</div>
+    <div class="chart-box" id="provinceTop10Chart" style="height:360px"></div>
+  </div>
+</div>
+
+<!-- Row 10: 客单价日趋势 + 品类成交率对比 -->
+<div class="charts-row">
+  <div class="chart-card span2">
     <div class="chart-title">💰 客单价日趋势</div>
     <div class="chart-box" id="avgOrderChart" style="height:400px"></div>
   </div>
   <div class="chart-card">
-    <div class="chart-title">🏙️ 省份Top10排行（订单金额）</div>
-    <div class="chart-box" id="provinceTop10Chart" style="height:360px"></div>
+    <div class="chart-title">📊 品类成交率对比</div>
+    <div class="chart-box" id="categoryConvChart" style="height:360px"></div>
   </div>
 </div>
 
