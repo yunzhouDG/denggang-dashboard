@@ -1572,13 +1572,30 @@ function renderMonthlyCatChart() {
 
     barMaxWidth: 60,
 
+    stack: 'total',
+
     data: records.map(r => r[cat] || 0),
 
-    itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: colorPairs[i % colorPairs.length][0] }, { offset: 1, color: colorPairs[i % colorPairs.length][1] }]), borderRadius: [6, 6, 0, 0] },
+    itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: colorPairs[i % colorPairs.length][0] }, { offset: 1, color: colorPairs[i % colorPairs.length][1] }]), borderRadius: i === 0 ? [6, 6, 0, 0] : [0, 0, 0, 0] },
 
-    label: { show: true, position: 'top', color: '#cbd5e1', fontSize: 10, fontWeight: 600, rotate: 30, formatter: function(p){ return p.value > 0 ? p.value : ''; } }
+    label: { show: false }
 
   }));
+
+  // Top label series showing monthly total
+  var totalSeries = {
+    name: '合计',
+    type: 'bar',
+    stack: 'total',
+    barMaxWidth: 60,
+    data: records.map(r => {
+      var sum = cats.reduce(function(s, c) { return s + (r[c] || 0); }, 0);
+      return { value: 0, label: { show: sum > 0, position: 'top', color: '#e2e8f0', fontSize: 11, fontWeight: 'bold', formatter: String(sum) } };
+    }),
+    itemStyle: { color: 'transparent' },
+    tooltip: { show: false }
+  };
+  series.push(totalSeries);
 
   chartMonthlyCat.setOption({
 
