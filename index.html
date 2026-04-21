@@ -792,7 +792,7 @@
 
     <div class="chart-title">💰 月度品类金额（万元）</div>
 
-    <div class="chart-box" id="monthlyCatChart" style="height:320px"></div>
+    <div class="chart-box" id="monthlyCatChart" style="height:360px"></div>
 
   </div>
 
@@ -1546,53 +1546,73 @@ function renderCenterChart() {
 // ===== Monthly Category Amount Chart =====
 
 function renderMonthlyCatChart() {
-
   if (!chartMonthlyCat) chartMonthlyCat = initChart('monthlyCatChart');
-
   const records = DATA.monthlyCatAmount || [];
+  if (!records.length) return;
 
   const months = records.map(r => r['月份']);
-
   const cats = Object.keys(records[0] || {}).filter(k => k !== '月份');
 
   const colorPairs = [
-    ['#22d3ee','rgba(34,211,238,0.2)'],
-    ['#f472b6','rgba(244,114,182,0.2)'],
-    ['#a78bfa','rgba(167,139,250,0.2)'],
-    ['#fbbf24','rgba(251,191,36,0.2)'],
-    ['#34d399','rgba(52,211,153,0.2)'],
-    ['#fb7185','rgba(251,113,133,0.2)']
+    ['rgba(34,211,238,1)',  'rgba(34,211,238,0.2)'],
+    ['rgba(244,114,182,1)','rgba(244,114,182,0.2)'],
+    ['rgba(167,139,250,1)','rgba(167,139,250,0.2)'],
+    ['rgba(251,191,36,1)', 'rgba(251,191,36,0.2)'],
+    ['rgba(52,211,153,1)', 'rgba(52,211,153,0.2)'],
+    ['rgba(251,113,133,1)','rgba(251,113,133,0.2)']
   ];
 
-  // Precompute monthly totals for top labels
-  var monthlyTotals = records.map(r => cats.reduce(function(s, c) { return s + (r[c] || 0); }, 0));
-
+  // Build grouped bar data: X-axis = months, series = categories
   const series = cats.map((cat, i) => ({
     name: cat,
     type: 'bar',
-    barMaxWidth: 60,
-    stack: 'total',
+    barMaxWidth: 36,
     data: records.map(r => r[cat] || 0),
-    itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: colorPairs[i % colorPairs.length][0] }, { offset: 1, color: colorPairs[i % colorPairs.length][1] }]), borderRadius: [0, 0, 0, 0] },
+    itemStyle: {
+      color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+        { offset: 0, color: colorPairs[i % colorPairs.length][0] },
+        { offset: 1, color: colorPairs[i % colorPairs.length][1] }
+      ]),
+      borderRadius: [4, 4, 0, 0]
+    },
     label: {
-      show: i === cats.length - 1,
+      show: true,
       position: 'top',
-      color: '#e2e8f0',
-      fontSize: 11,
-      fontWeight: 'bold',
-      formatter: function(p) { return monthlyTotals[p.dataIndex] > 0 ? monthlyTotals[p.dataIndex] : ''; }
+      color: '#cbd5e1',
+      fontSize: 10,
+      fontWeight: 600,
+      formatter: function(p) { return p.value > 0 ? p.value : ''; }
     }
   }));
 
   chartMonthlyCat.setOption({
     tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, tooltipStyle),
-    legend: { top: 0, textStyle: { color: '#94a3b8', fontSize: 12 }, itemWidth: 16, itemHeight: 3 },
-    grid: { left: 60, right: 30, top: 40, bottom: 40 },
-    xAxis: { type: 'category', data: months, axisLabel: { color: '#94a3b8', fontSize: 12 }, axisLine: { lineStyle: { color: 'rgba(51,65,85,0.5)' } }, axisTick: { show: false } },
-    yAxis: { type: 'value', name: '万元', nameTextStyle: { color: '#64748b' }, axisLabel: { color: '#64748b', formatter: '{value}' }, splitLine: { lineStyle: { color: 'rgba(51,65,85,0.2)', type: 'dashed' } } },
+    legend: {
+      top: 0,
+      textStyle: { color: '#94a3b8', fontSize: 12 },
+      itemWidth: 14, itemHeight: 10, itemGap: 16
+    },
+    grid: { left: 60, right: 30, top: 40, bottom: 50 },
+    xAxis: {
+      type: 'category',
+      data: months.map(m => m.substring(5)),
+      axisLabel: { color: '#94a3b8', fontSize: 12, fontWeight: 'bold' },
+      axisLine: { lineStyle: { color: 'rgba(51,65,85,0.5)' } },
+      axisTick: { show: false },
+      name: '月份',
+      nameLocation: 'middle',
+      nameGap: 30,
+      nameTextStyle: { color: '#64748b', fontSize: 12 }
+    },
+    yAxis: {
+      type: 'value',
+      name: '万元',
+      nameTextStyle: { color: '#64748b' },
+      axisLabel: { color: '#64748b', formatter: '{value}' },
+      splitLine: { lineStyle: { color: 'rgba(51,65,85,0.2)', type: 'dashed' } }
+    },
     series: series
   });
-
 }
 
 // ===== Province Heat Maps =====
