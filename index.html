@@ -1129,21 +1129,37 @@ function applyFilters() {
 
 
 
-  // Areas
+  // Areas — aggregate filtered center data into area level using centerAreaMap
 
-  const centerAreaMap = {};
+  const centerAreaMap = DATA.centerAreaMap || {};
 
-  DATA.aggDetail.forEach(r => { if(r['运营中心']) centerAreaMap[r['运营中心']] = ''; });
+  const areaAgg = {};
 
-  // Use static area mapping from pre-built data
+  filteredCenters.forEach(r => {
 
-  const areaMap2 = {};
+    const centerName = r['运营中心'];
 
-  DATA.areas.forEach(r => { areaMap2[r['片区']] = true; });
+    const areaName = centerAreaMap[centerName];
 
-  // Simpler: just use centers as areas proxy
+    if (!areaName) return;
 
-  filteredAreas = filteredCenters.map(r => ({ 片区: r['运营中心'], ...r }));
+    if (!areaAgg[areaName]) areaAgg[areaName] = { 片区: areaName, 客资数: 0, 订单数: 0, 订单金额: 0 };
+
+    areaAgg[areaName].客资数 += r['客资数'] || 0;
+
+    areaAgg[areaName].订单数 += r['订单数'] || 0;
+
+    areaAgg[areaName].订单金额 += r['订单金额'] || 0;
+
+  });
+
+  filteredAreas = Object.values(areaAgg).map(r => {
+
+    r['订单金额_万'] = Math.round(r['订单金额'] / 10000 * 10) / 10;
+
+    return r;
+
+  });
 
 
 
