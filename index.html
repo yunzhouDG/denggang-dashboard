@@ -2270,17 +2270,27 @@ function renderBrandAmount() {
       }
     }, tooltipStyle),
     legend: {
-      orient: 'vertical', right: 10, top: 'center',
-      textStyle: { color: '#cbd5e1', fontSize: 12 },
-      itemWidth: 14, itemHeight: 14, itemGap: 12
+      show: false
     },
     series: [{
       type: 'pie',
-      radius: ['35%', '65%'],
-      center: ['30%', '50%'],
+      radius: ['30%', '58%'],
+      center: ['35%', '50%'],
       avoidLabelOverlap: true,
-      label: { show: true, color: '#cbd5e1', fontSize: 11, fontWeight: 'bold', formatter: '{b}\n{c}万 {d}%', lineHeight: 16, distanceToLabelLine: 5 },
-      labelLine: { show: true, length: 15, length2: 20, lineStyle: { color: 'rgba(148,163,184,0.5)' } },
+      label: {
+        show: true,
+        position: 'outside',
+        color: '#cbd5e1',
+        fontSize: 11,
+        fontWeight: 'bold',
+        formatter: function(p) {
+          // 小扇区只显示名称和百分比，大扇区显示完整信息
+          if (p.percent < 5) return p.name + '\n' + p.percent + '%';
+          return p.name + '\n' + p.value + '万 ' + p.percent + '%';
+        },
+        lineHeight: 16
+      },
+      labelLine: { show: true, length: 10, length2: 15, lineStyle: { color: 'rgba(148,163,184,0.5)' } },
       emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#f0f9ff' } },
       itemStyle: { borderColor: 'rgba(15,23,42,0.8)', borderWidth: 2, borderRadius: 6 },
       data: data.map(function(item, i) {
