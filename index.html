@@ -796,6 +796,23 @@
 
   </div>
 
+  <div class="charts-row" style="margin-top:16px">
+    <div class="chart-card">
+      <div class="chart-title">🗺️ 片区金额占比</div>
+      <div class="chart-box" id="areaAmountPieChart" style="height:400px"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">📦 品类金额占比</div>
+      <div class="chart-box" id="categoryAmountPieChart" style="height:400px"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">🏷️ 品牌成交金额占比</div>
+      <div class="chart-box" id="brandAmountChart" style="height:400px"></div>
+    </div>
+  </div>
+
+  <div class="charts-row" style="margin-top:16px">
+
   <div class="chart-card full">
 
     <div class="chart-title">💰 月度品类金额（万元）</div>
@@ -882,8 +899,8 @@
     <div class="chart-box" id="top10StoreChart" style="height:360px"></div>
   </div>
   <div class="chart-card">
-    <div class="chart-title">🏷️ 品牌成交金额占比</div>
-    <div class="chart-box" id="brandAmountChart" style="height:400px"></div>
+    <div class="chart-title">💰 客单价日趋势</div>
+    <div class="chart-box" id="avgOrderChart" style="height:400px"></div>
   </div>
   <div class="chart-card">
     <div class="chart-title">🏙️ 省份Top10排行（订单金额）</div>
@@ -918,6 +935,8 @@ let filteredBrands, filteredCategories, filteredCenters, filteredAreas;
 let chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product, chartSource, chartCategoryConv, chartTop10Store, chartBrandAmount, chartProvinceTop10, chartDailyFunnel;
 
 let chartKzProvince, chartOrderProvince, chartCenterProvince;
+
+let chartAreaAmountPie, chartCategoryAmountPie, chartAvgOrder;
 
 
 
@@ -1166,6 +1185,8 @@ function applyFilters() {
   renderKPI(); renderDailyTrend(); renderRateTrend(); renderFunnel();
 
   renderBrandChart(); renderCategoryChart(); renderCenterChart(); renderMonthlyCatChart(); renderProvinceCharts(); renderTop10Products(); renderSourceChart(); renderCategoryConv(); renderTop10Stores(); renderBrandAmount(); renderProvinceTop10(); renderDailyFunnel(); renderSummary();
+
+  renderAreaAmountPie(); renderCategoryAmountPie(); renderAvgOrder();
 
 }
 
@@ -2302,7 +2323,6 @@ function renderBrandAmount() {
         fontSize: 11,
         fontWeight: 'bold',
         formatter: function(p) {
-          // 小扇区只显示名称和百分比，大扇区显示完整信息
           if (p.percent < 5) return p.name + '\n' + p.percent + '%';
           return p.name + '\n' + p.value + '万 ' + p.percent + '%';
         },
@@ -2315,6 +2335,119 @@ function renderBrandAmount() {
         return { name: item['品牌'], value: item['订单金额_万'], itemStyle: { color: colors[i % colors.length] } };
       })
     }]
+  });
+}
+
+// ===== Area Amount Pie =====
+function renderAreaAmountPie() {
+  var data = (filteredAreas || []);
+  if (!data.length) return;
+  if (!chartAreaAmountPie) chartAreaAmountPie = initChart('areaAmountPieChart');
+  var colors = ['rgba(99,102,241,0.85)', 'rgba(6,182,212,0.85)', 'rgba(34,197,94,0.85)', 'rgba(251,191,36,0.85)', 'rgba(236,72,153,0.85)'];
+  chartAreaAmountPie.setOption({
+    tooltip: Object.assign({
+      trigger: 'item',
+      formatter: function(p) {
+        return '<b style="color:#818cf8">' + p.name + '</b><br/>'
+          + '<span style="color:#94a3b8">金额：</span><b>' + p.value + '万</b><br/>'
+          + '<span style="color:#94a3b8">占比：</span><b>' + p.percent + '%</b>';
+      }
+    }, tooltipStyle),
+    legend: { show: false },
+    series: [{
+      type: 'pie',
+      radius: ['30%', '58%'],
+      center: ['35%', '50%'],
+      avoidLabelOverlap: true,
+      label: {
+        show: true, position: 'outside', color: '#cbd5e1', fontSize: 11, fontWeight: 'bold',
+        formatter: function(p) {
+          if (p.percent < 5) return p.name + '\n' + p.percent + '%';
+          return p.name + '\n' + p.value + '万 ' + p.percent + '%';
+        },
+        lineHeight: 16
+      },
+      labelLine: { show: true, length: 10, length2: 15, lineStyle: { color: 'rgba(148,163,184,0.5)' } },
+      emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#f0f9ff' } },
+      itemStyle: { borderColor: 'rgba(15,23,42,0.8)', borderWidth: 2, borderRadius: 6 },
+      data: data.map(function(item, i) {
+        return { name: item['片区'], value: item['订单金额_万'], itemStyle: { color: colors[i % colors.length] } };
+      })
+    }]
+  });
+}
+
+// ===== Category Amount Pie =====
+function renderCategoryAmountPie() {
+  var data = (filteredCategories || []);
+  if (!data.length) return;
+  if (!chartCategoryAmountPie) chartCategoryAmountPie = initChart('categoryAmountPieChart');
+  var colors = ['rgba(99,102,241,0.85)', 'rgba(6,182,212,0.85)', 'rgba(168,85,247,0.85)', 'rgba(236,72,153,0.85)', 'rgba(20,184,166,0.85)', 'rgba(251,146,60,0.85)'];
+  chartCategoryAmountPie.setOption({
+    tooltip: Object.assign({
+      trigger: 'item',
+      formatter: function(p) {
+        return '<b style="color:#818cf8">' + p.name + '</b><br/>'
+          + '<span style="color:#94a3b8">金额：</span><b>' + p.value + '万</b><br/>'
+          + '<span style="color:#94a3b8">占比：</span><b>' + p.percent + '%</b>';
+      }
+    }, tooltipStyle),
+    legend: { show: false },
+    series: [{
+      type: 'pie',
+      radius: ['30%', '58%'],
+      center: ['35%', '50%'],
+      avoidLabelOverlap: true,
+      label: {
+        show: true, position: 'outside', color: '#cbd5e1', fontSize: 11, fontWeight: 'bold',
+        formatter: function(p) {
+          if (p.percent < 5) return p.name + '\n' + p.percent + '%';
+          return p.name + '\n' + p.value + '万 ' + p.percent + '%';
+        },
+        lineHeight: 16
+      },
+      labelLine: { show: true, length: 10, length2: 15, lineStyle: { color: 'rgba(148,163,184,0.5)' } },
+      emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#f0f9ff' } },
+      itemStyle: { borderColor: 'rgba(15,23,42,0.8)', borderWidth: 2, borderRadius: 6 },
+      data: data.map(function(item, i) {
+        return { name: item['品类'], value: item['订单金额_万'], itemStyle: { color: colors[i % colors.length] } };
+      })
+    }]
+  });
+}
+
+// ===== Avg Order Amount Daily Trend =====
+function renderAvgOrderChart() {
+  var data = (DATA.avgOrderDaily || []);
+  if (!data.length) return;
+  if (!chartAvgOrder) chartAvgOrder = initChart('avgOrderChart');
+  var dates = data.map(function(r) { return r['日期'].slice(5); });
+  var values = data.map(function(r) { return r['客单价']; });
+  var avgVal = Math.round(values.reduce(function(a,b){return a+b;},0) / values.filter(function(v){return v>0;}).length * 10) / 10;
+  chartAvgOrder.setOption({
+    tooltip: Object.assign({
+      trigger: 'axis',
+      formatter: function(ps) {
+        var p = ps[0];
+        return '<b>' + p.axisValue + '</b><br/>'
+          + '<span style="color:#94a3b8">客单价：</span><b style="color:#f472b6">' + p.value + ' 元</b>';
+      }
+    }, tooltipStyle),
+    grid: { left: 55, right: 20, top: 40, bottom: 30 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#64748b', fontSize: 10, interval: Math.max(0, Math.floor(dates.length/15)-1) }, axisLine: { lineStyle: { color: 'rgba(51,65,85,0.3)' } } },
+    yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(51,65,85,0.15)', type: 'dashed' } }, axisLabel: { color: '#94a3b8', fontSize: 10 } },
+    series: [{
+      type: 'line', data: values, smooth: true, symbol: 'none',
+      lineStyle: { color: '#f472b6', width: 2 },
+      areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+        { offset: 0, color: 'rgba(244,114,182,0.25)' },
+        { offset: 1, color: 'rgba(244,114,182,0.02)' }
+      ])},
+      markLine: { silent: true, symbol: 'none', lineStyle: { color: 'rgba(244,114,182,0.4)', type: 'dashed' },
+        data: [{ yAxis: avgVal, label: { formatter: '均值 ' + avgVal + '元', color: '#f472b6', fontSize: 10, position: 'insideEndTop' } }]
+      }
+    }],
+    graphic: [{ type: 'text', left: 10, top: 8, style: { text: '均值 ' + avgVal + ' 元', fill: '#f472b6', fontSize: 12, fontWeight: 'bold' } }]
   });
 }
 
@@ -2392,7 +2525,7 @@ function renderDailyFunnel() {
 
 window.addEventListener('resize', () => {
 
-  [chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product, chartSource, chartCategoryConv, chartKzProvince, chartOrderProvince, chartCenterProvince, chartTop10Store, chartBrandAmount, chartProvinceTop10, chartDailyFunnel].forEach(c => c && c.resize());
+  [chartDailyTrend, chartRateTrend, chartFunnel, chartBrand, chartCategory, chartCenter, chartMonthlyCat, chartTop10Product, chartSource, chartCategoryConv, chartKzProvince, chartOrderProvince, chartCenterProvince, chartTop10Store, chartBrandAmount, chartProvinceTop10, chartDailyFunnel, chartAreaAmountPie, chartCategoryAmountPie, chartAvgOrder].forEach(c => c && c.resize());
 
 });
 
