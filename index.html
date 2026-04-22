@@ -1480,7 +1480,7 @@ function renderBrandChart() {
 
       { name: '订单数', type: 'bar', data: d.map(x => x['订单数']), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#a78bfa' }, { offset: 1, color: 'rgba(167,139,250,0.3)' }]), borderRadius: [6, 6, 0, 0] }, label: { show: true, position: 'top', fontSize: 9, color: '#cbd5e1' } },
 
-      { name: '金额(万)', type: 'line', yAxisIndex: 1, data: d.map(x => x['订单金额_万']), itemStyle: { color: '#f472b6' }, lineStyle: { width: 2.5 }, symbol: 'circle', symbolSize: 6, label: { show: true, position: 'top', fontSize: 9, color: '#cbd5e1' } }
+      { name: '金额(万)', type: 'line', yAxisIndex: 1, data: d.map(x => x['订单金额_万']), itemStyle: { color: '#f472b6' }, lineStyle: { width: 2.5 }, symbol: 'circle', symbolSize: 6, label: { show: true, position: 'right', fontSize: 9, color: '#cbd5e1' } }
 
     ]
 
@@ -1520,7 +1520,7 @@ function renderCategoryChart() {
 
       { name: '订单数', type: 'bar', data: d.map(x => x['订单数']), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#34d399' }, { offset: 1, color: 'rgba(52,211,153,0.3)' }]), borderRadius: [6, 6, 0, 0] }, label: { show: true, position: 'top', fontSize: 9, color: '#cbd5e1' } },
 
-      { name: '金额(万)', type: 'line', yAxisIndex: 1, data: d.map(x => x['订单金额_万']), itemStyle: { color: '#fbbf24' }, lineStyle: { width: 2.5 }, symbol: 'circle', symbolSize: 6, label: { show: true, position: 'top', fontSize: 9, color: '#cbd5e1' } }
+      { name: '金额(万)', type: 'line', yAxisIndex: 1, data: d.map(x => x['订单金额_万']), itemStyle: { color: '#fbbf24' }, lineStyle: { width: 2.5 }, symbol: 'circle', symbolSize: 6, label: { show: true, position: 'right', fontSize: 9, color: '#cbd5e1' } }
 
     ]
 
