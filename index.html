@@ -2540,7 +2540,17 @@ function renderTop10Stores() {
   var amounts = data.map(function(x) { return x['订单金额_万']; }).reverse();
   var maxAmt = Math.max.apply(null, amounts);
   chartTop10Store.setOption({
-    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, tooltipStyle),
+    tooltip: Object.assign({
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: function(params) {
+        var p = params[0];
+        var idx = p.dataIndex;
+        var d = data[data.length - 1 - idx];
+        return '<b style="color:#818cf8">' + d['门店名称'] + '</b><br/>'
+          + '<span style="color:#94a3b8">订单金额：</span><b style="color:#22d3ee">' + p.value + '万</b>';
+      }
+    }, tooltipStyle),
     grid: { left: 140, right: 40, top: 10, bottom: 20 },
     xAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(51,65,85,0.2)', type: 'dashed' } }, axisLabel: { color: '#94a3b8', formatter: '{value}万' } },
     yAxis: { type: 'category', data: names, axisLabel: { color: '#cbd5e1', fontSize: 11 } },
