@@ -2604,8 +2604,7 @@ function renderBrandAmount() {
         fontSize: 11,
         fontWeight: 'bold',
         formatter: function(p) {
-          if (p.percent < 5) return p.name + '\n' + p.percent + '%';
-          return p.name + '\n' + p.value + '万 ' + p.percent + '%';
+          return p.name + '\n' + p.value + '万'+ '\n' + p.percent + '%';
         },
         lineHeight: 16
       },
@@ -2643,8 +2642,7 @@ function renderAreaAmountPie() {
       label: {
         show: true, position: 'outside', color: '#cbd5e1', fontSize: 11, fontWeight: 'bold',
         formatter: function(p) {
-          if (p.percent < 5) return p.name + '\n' + p.percent + '%';
-          return p.name + '\n' + p.value + '万 ' + p.percent + '%';
+          return p.name + '\n' + p.value + '万'+ '\n' + p.percent + '%';
         },
         lineHeight: 16
       },
@@ -2682,8 +2680,7 @@ function renderCategoryAmountPie() {
       label: {
         show: true, position: 'outside', color: '#cbd5e1', fontSize: 11, fontWeight: 'bold',
         formatter: function(p) {
-          if (p.percent < 5) return p.name + '\n' + p.percent + '%';
-          return p.name + '\n' + p.value + '万 ' + p.percent + '%';
+          return p.name + '\n' + p.value + '万'+ '\n' + p.percent + '%';
         },
         lineHeight: 16
       },
